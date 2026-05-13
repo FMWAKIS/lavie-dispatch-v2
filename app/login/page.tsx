@@ -39,7 +39,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-auto bg-[#020817] flex flex-col lg:flex-row font-sans">
+    <main className="h-screen overflow-hidden bg-[#020817] flex font-sans">
 
       {/* LEFT SIDE */}
       <section className="w-[40%] h-full flex items-center justify-center px-14 relative bg-[#020817]">
