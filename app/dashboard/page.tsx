@@ -75,7 +75,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#020617] text-white flex">
+    <main className="relative min-h-screen overflow-auto bg-[#020617] text-white flex flex-col lg:flex-row">
 
       {/* SIDEBAR */}
       <aside className="w-[250px] bg-white/[0.03] border-r border-white/10 backdrop-blur-2xl p-5 flex flex-col">
