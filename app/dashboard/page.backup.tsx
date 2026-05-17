@@ -27,17 +27,6 @@ import {
   XAxis,
 } from "recharts";
 
-import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  query,
-  orderBy,
-} from "firebase/firestore";
-
-import { db } from "../firebase";
-
 const data = [
   { h: "08h", v: 12 },
   { h: "10h", v: 20 },
@@ -51,7 +40,6 @@ export default function Dashboard() {
 
   const [time, setTime] = useState("");
   const [activeMenu, setActiveMenu] = useState("dashboard");
-  const [liveUrgences, setLiveUrgences] = useState<any[]>([]);
 
   /* ================= PROFILE ================= */
   const [showProfile, setShowProfile] = useState(false);
@@ -85,35 +73,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
 
   }, []);
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "interventions"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-      }));
-
-      setLiveUrgences(data);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const updateUrgenceStatus = async (id: string, statut: string) => {
-    try {
-      await updateDoc(doc(db, "interventions", id), {
-        statut,
-      });
-    } catch (error) {
-      console.error("Erreur mise à jour urgence:", error);
-      alert("Impossible de mettre à jour cette urgence.");
-    }
-  };
 
   return (
     <main className="relative h-screen overflow-hidden bg-[#020617] text-white flex">
@@ -1066,22 +1025,26 @@ export default function Dashboard() {
   <div className="h-full flex flex-col gap-4 overflow-hidden">
 
     {/* TOP ALERT BAR */}
-    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-orange-600 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
+    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-700 via-red-600 to-orange-500 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
 
       <div className="flex items-center gap-5">
 
         <div className="w-14 h-14 rounded-2xl bg-black/20 flex items-center justify-center backdrop-blur-xl">
+
           <Siren size={30} className="animate-pulse text-white" />
+
         </div>
 
         <div>
+
           <div className="text-2xl font-black tracking-tight">
-            Centre des Urgences Live
+            Centre des Urgences
           </div>
 
           <div className="text-xs text-white/70 mt-1">
-            Alertes réelles reçues depuis l'application mobile LA VIE
+            Dispatch médical intelligent — incidents critiques en temps réel
           </div>
+
         </div>
 
       </div>
@@ -1089,23 +1052,29 @@ export default function Dashboard() {
       <div className="flex items-center gap-6">
 
         <div className="text-right">
+
           <div className="text-[11px] text-white/70">
-            ALERTES FIREBASE
+            INCIDENTS ACTIFS
           </div>
+
           <div className="text-2xl font-black">
-            {liveUrgences.length}
+            12
           </div>
+
         </div>
 
         <div className="w-[1px] h-10 bg-white/20" />
 
         <div className="text-right">
+
           <div className="text-[11px] text-white/70">
-            STATUT
+            NIVEAU VILLE
           </div>
-          <div className="text-xl font-black text-green-200">
-            LIVE
+
+          <div className="text-xl font-black text-yellow-200">
+            ÉLEVÉ
           </div>
+
         </div>
 
       </div>
@@ -1116,39 +1085,75 @@ export default function Dashboard() {
     <div className="grid grid-cols-4 gap-4 h-[105px]">
 
       <div className="bg-white/[0.03] border border-red-500/20 rounded-[26px] p-4">
+
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">ALERTES REÇUES</div>
+
+          <div className="text-[11px] text-white/40">
+            APPELS ENTRANTS
+          </div>
+
           <PhoneCall size={18} className="text-red-400" />
+
         </div>
+
         <div className="text-4xl font-black text-red-400">
-          {liveUrgences.length}
+          143
         </div>
+
       </div>
 
       <div className="bg-white/[0.03] border border-yellow-500/20 rounded-[26px] p-4">
+
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">EN DISPATCH</div>
+
+          <div className="text-[11px] text-white/40">
+            PRIORITÉ IA
+          </div>
+
           <Bell size={18} className="text-yellow-400" />
+
         </div>
+
         <div className="text-3xl font-black text-yellow-400">
-          {liveUrgences.filter((item: any) => item.statut !== "Terminée").length}
+          7 HIGH
         </div>
+
       </div>
 
       <div className="bg-white/[0.03] border border-green-500/20 rounded-[26px] p-4">
+
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">UNITÉS DISPO</div>
+
+          <div className="text-[11px] text-white/40">
+            UNITÉS DISPO
+          </div>
+
           <Ambulance size={18} className="text-green-400" />
+
         </div>
-        <div className="text-4xl font-black text-green-400">8</div>
+
+        <div className="text-4xl font-black text-green-400">
+          8
+        </div>
+
       </div>
 
       <div className="bg-white/[0.03] border border-blue-500/20 rounded-[26px] p-4">
+
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">TEMPS RÉPONSE</div>
+
+          <div className="text-[11px] text-white/40">
+            ETA MOYEN
+          </div>
+
           <Activity size={18} className="text-blue-400" />
+
         </div>
-        <div className="text-4xl font-black text-blue-400">4m</div>
+
+        <div className="text-4xl font-black text-blue-400">
+          4m
+        </div>
+
       </div>
 
     </div>
@@ -1156,108 +1161,170 @@ export default function Dashboard() {
     {/* MAIN GRID */}
     <div className="grid grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
 
-      {/* LEFT PANEL : ALERTES LIVE */}
-      <div className="col-span-4 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
+      {/* LEFT PANEL */}
+      <div className="col-span-3 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
 
         <div className="flex items-center justify-between mb-5">
+
           <div>
-            <div className="text-xl font-black">Alertes mobiles</div>
-            <div className="text-xs text-white/40 mt-1">Flux Firestore temps réel</div>
+
+            <div className="text-xl font-black">
+              Incidents Live
+            </div>
+
+            <div className="text-xs text-white/40 mt-1">
+              Priorisation automatique IA
+            </div>
+
           </div>
+
           <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+
         </div>
 
         <div className="space-y-3 overflow-y-auto pr-1">
 
-          {liveUrgences.length === 0 && (
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-center">
-              <Siren size={32} className="mx-auto mb-3 text-white/30" />
-              <div className="font-black text-white/70">Aucune alerte</div>
-              <div className="text-xs text-white/40 mt-2">
-                Les SOS envoyés depuis l'app mobile apparaîtront ici.
+          {/* INCIDENT */}
+          <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4">
+
+            <div className="flex items-start justify-between">
+
+              <div>
+
+                <div className="text-sm font-black text-red-400">
+                  Accident critique
+                </div>
+
+                <div className="text-xs text-white/40 mt-1">
+                  Boulevard Lumumba — Limete
+                </div>
+
               </div>
+
+              <div className="text-[10px] font-bold text-red-300">
+                P1
+              </div>
+
             </div>
-          )}
 
-          {liveUrgences.map((urgence: any) => (
-            <div
-              key={urgence.id}
-              className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-black text-red-400">
-                    {urgence.type || "Urgence médicale"}
-                  </div>
-                  <div className="text-xs text-white/40 mt-1">
-                    {urgence.lieu || "Position GPS actuelle"}
-                  </div>
-                </div>
-                <div className="text-[10px] font-bold text-red-300 bg-red-500/10 px-2 py-1 rounded-full">
-                  LIVE
-                </div>
+            <div className="mt-4 flex items-center justify-between">
+
+              <div className="text-xs text-white/50">
+                2 victimes
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-white/5 rounded-xl p-3">
-                  <div className="text-white/35">CLIENT</div>
-                  <div className="font-bold mt-1 truncate">
-                    {urgence.userName || "Client LA VIE"}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-xl p-3">
-                  <div className="text-white/35">STATUT</div>
-                  <div className="font-bold mt-1 text-yellow-400 truncate">
-                    {urgence.statut || "Envoyée au dispatch"}
-                  </div>
-                </div>
+              <div className="text-xs font-bold text-yellow-400">
+                ETA 3 min
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Acceptée par dispatch")}
-                  className="h-10 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold transition-all"
-                >
-                  Accepter
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Ambulance envoyée")}
-                  className="h-10 rounded-xl bg-red-600 hover:bg-red-700 text-xs font-bold transition-all"
-                >
-                  Ambulance
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Moto Medivac envoyée")}
-                  className="h-10 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-black text-xs font-black transition-all"
-                >
-                  Moto
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Terminée")}
-                  className="h-10 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-bold transition-all"
-                >
-                  Terminer
-                </button>
-              </div>
             </div>
-          ))}
+
+          </div>
+
+          <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4">
+
+            <div className="flex items-start justify-between">
+
+              <div>
+
+                <div className="text-sm font-black text-orange-400">
+                  Malaise cardiaque
+                </div>
+
+                <div className="text-xs text-white/40 mt-1">
+                  Gombe — Hôtel du Fleuve
+                </div>
+
+              </div>
+
+              <div className="text-[10px] font-bold text-orange-300">
+                P2
+              </div>
+
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+
+              <div className="text-xs text-white/50">
+                Moto envoyée
+              </div>
+
+              <div className="text-xs font-bold text-green-400">
+                EN ROUTE
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="rounded-2xl bg-blue-500/10 border border-blue-500/20 p-4">
+
+            <div className="flex items-start justify-between">
+
+              <div>
+
+                <div className="text-sm font-black text-blue-400">
+                  Intervention domicile
+                </div>
+
+                <div className="text-xs text-white/40 mt-1">
+                  Ngaliema — Binza
+                </div>
+
+              </div>
+
+              <div className="text-[10px] font-bold text-blue-300">
+                P3
+              </div>
+
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+
+              <div className="text-xs text-white/50">
+                Assistance médicale
+              </div>
+
+              <div className="text-xs font-bold text-blue-400">
+                STABLE
+              </div>
+
+            </div>
+
+          </div>
 
         </div>
 
       </div>
 
-      {/* CENTER MAP */}
-      <div className="col-span-5 flex flex-col gap-4 min-h-0 overflow-hidden">
+      {/* CENTER */}
+      <div className="col-span-6 flex flex-col gap-4 min-h-0 overflow-hidden">
 
+        {/* MAP */}
         <div className="flex-1 rounded-[26px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
+
           <div className="absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between">
+
             <div>
-              <div className="text-xl font-black">Carte Intervention Live</div>
-              <div className="text-xs text-white/40 mt-1">Suivi GPS des incidents et unités</div>
+
+              <div className="text-xl font-black">
+                Carte Intervention Live
+              </div>
+
+              <div className="text-xs text-white/40 mt-1">
+                Suivi des incidents et unités médicales
+              </div>
+
             </div>
+
             <div className="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-2xl backdrop-blur-xl">
-              <div className="text-[11px] text-red-300">FIREBASE LIVE</div>
+
+              <div className="text-[11px] text-red-300">
+                PRIORITÉ MAXIMALE
+              </div>
+
             </div>
+
           </div>
 
           <iframe
@@ -1267,31 +1334,70 @@ export default function Dashboard() {
             height="100%"
             style={{ border: 0 }}
           />
+
         </div>
 
+        {/* TIMELINE */}
         <div className="h-[160px] bg-white/[0.03] border border-white/10 rounded-[26px] p-5">
+
           <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-black">Timeline Intervention</div>
-            <div className="text-xs text-green-400 font-bold">LIVE TRACKING</div>
+
+            <div className="text-lg font-black">
+              Timeline Intervention
+            </div>
+
+            <div className="text-xs text-green-400 font-bold">
+              LIVE TRACKING
+            </div>
+
           </div>
 
           <div className="space-y-3">
+
             <div className="flex items-center gap-4">
+
               <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="text-sm">Alerte reçue depuis l'application mobile</div>
-              <div className="ml-auto text-xs text-white/40">LIVE</div>
+
+              <div className="text-sm">
+                Appel reçu — Accident critique
+              </div>
+
+              <div className="ml-auto text-xs text-white/40">
+                18:42
+              </div>
+
             </div>
+
             <div className="flex items-center gap-4">
+
               <div className="w-3 h-3 rounded-full bg-yellow-400" />
-              <div className="text-sm">Dispatch en attente d’assignation</div>
-              <div className="ml-auto text-xs text-white/40">AUTO</div>
+
+              <div className="text-sm">
+                IA Dispatch — Moto M-04 assignée
+              </div>
+
+              <div className="ml-auto text-xs text-white/40">
+                18:43
+              </div>
+
             </div>
+
             <div className="flex items-center gap-4">
+
               <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-              <div className="text-sm">Mise à jour synchronisée avec Firebase</div>
-              <div className="ml-auto text-xs text-white/40">OK</div>
+
+              <div className="text-sm">
+                Unité en route vers intervention
+              </div>
+
+              <div className="ml-auto text-xs text-white/40">
+                LIVE
+              </div>
+
             </div>
+
           </div>
+
         </div>
 
       </div>
@@ -1299,43 +1405,110 @@ export default function Dashboard() {
       {/* RIGHT PANEL */}
       <div className="col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
 
+        {/* IA PANEL */}
         <div className="bg-gradient-to-br from-red-600 to-orange-500 rounded-[26px] p-5 shadow-2xl shadow-red-900/30">
+
           <div className="flex items-center justify-between mb-5">
+
             <div>
-              <div className="text-xl font-black">Actions Dispatch</div>
-              <div className="text-xs text-white/70 mt-1">Gestion opérationnelle</div>
+
+              <div className="text-xl font-black">
+                IA Dispatch
+              </div>
+
+              <div className="text-xs text-white/70 mt-1">
+                Analyse temps réel
+              </div>
+
             </div>
+
             <Activity className="animate-pulse" />
+
           </div>
 
           <div className="space-y-4">
+
             <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-              <div className="text-xs text-white/60">RECOMMANDATION</div>
-              <div className="text-sm font-bold mt-2">Traiter les alertes par priorité et proximité.</div>
+
+              <div className="text-xs text-white/60">
+                RECOMMANDATION IA
+              </div>
+
+              <div className="text-sm font-bold mt-2">
+                Envoyer Ambulance A-12 + Moto M-04
+              </div>
+
             </div>
+
             <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-              <div className="text-xs text-white/60">SYNCHRONISATION</div>
-              <div className="text-sm font-bold mt-2">Toute action met à jour l’app client.</div>
+
+              <div className="text-xs text-white/60">
+                TRAFIC ROUTIER
+              </div>
+
+              <div className="text-sm font-bold mt-2">
+                Axe Lumumba saturé à 78%
+              </div>
+
             </div>
+
           </div>
+
         </div>
 
+        {/* LIVE LOGS */}
         <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden">
+
           <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-black">Logs Temps Réel</div>
+
+            <div className="text-lg font-black">
+              Logs Temps Réel
+            </div>
+
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+
           </div>
 
           <div className="space-y-3 overflow-y-auto h-full pr-1">
-            {liveUrgences.slice(0, 6).map((urgence: any) => (
-              <div key={urgence.id} className="bg-white/5 rounded-2xl p-3">
-                <div className="text-xs text-white/40">{urgence.date || "Aujourd’hui"}</div>
-                <div className="text-sm mt-1">
-                  {urgence.type || "Urgence"} — {urgence.statut || "Envoyée au dispatch"}
-                </div>
+
+            <div className="bg-white/5 rounded-2xl p-3">
+
+              <div className="text-xs text-white/40">
+                18:44
               </div>
-            ))}
+
+              <div className="text-sm mt-1">
+                Ambulance A-12 connectée au dispatch.
+              </div>
+
+            </div>
+
+            <div className="bg-white/5 rounded-2xl p-3">
+
+              <div className="text-xs text-white/40">
+                18:45
+              </div>
+
+              <div className="text-sm mt-1">
+                Moto M-04 approche zone critique.
+              </div>
+
+            </div>
+
+            <div className="bg-white/5 rounded-2xl p-3 border border-red-500/20">
+
+              <div className="text-xs text-red-300">
+                18:46 — PRIORITÉ
+              </div>
+
+              <div className="text-sm mt-1">
+                Niveau trafic augmenté sur Boulevard Lumumba.
+              </div>
+
+            </div>
+
           </div>
+
         </div>
 
       </div>
