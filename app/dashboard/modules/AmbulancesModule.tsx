@@ -8,9 +8,6 @@ import {
   Radio,
   ShieldCheck,
   ArrowLeft,
-  Fuel,
-  UserRound,
-  Activity,
   FileText,
   Printer,
   CheckCircle2,
@@ -71,17 +68,14 @@ export default function AmbulancesModule() {
         <div>
           <div className="text-3xl font-black">Ambulance Fleet</div>
           <div className="text-sm text-white/70 mt-1">
-            Gestion réelle des ambulances connectée à Firestore
+            Supervision des ambulances — données Firestore en temps réel
           </div>
         </div>
 
-        <button
-          onClick={() => setView("add")}
-          className="h-12 px-5 rounded-2xl bg-white text-red-700 font-black flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Ajouter ambulance
-        </button>
+        <div className="text-right">
+          <div className="text-[11px] text-white/60">MODULE</div>
+          <div className="text-xl font-black">AMBULANCE</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-4 h-[115px]">
@@ -94,7 +88,7 @@ export default function AmbulancesModule() {
       <div className="grid grid-cols-3 gap-5 flex-1 min-h-0">
         <WorkspaceCard
           title="Responsable Flotte"
-          subtitle="Disponibilité & équipes"
+          subtitle="Créer et gérer les véhicules"
           icon={<Ambulance size={34} />}
           color="from-red-700 to-red-950"
           actions={["Ajouter ambulance", "Changer statut", "Rapport flotte"]}
@@ -106,7 +100,7 @@ export default function AmbulancesModule() {
           subtitle="Missions terrain"
           icon={<Radio size={34} />}
           color="from-rose-700 to-red-950"
-          actions={["Mettre en mission", "Notifier patient", "Rapport missions"]}
+          actions={["Mettre en mission", "Suivre ambulance", "Rapport missions"]}
           onClick={() => setView("dispatch")}
         />
 
@@ -115,7 +109,7 @@ export default function AmbulancesModule() {
           subtitle="Maintenance & équipement"
           icon={<Wrench size={34} />}
           color="from-orange-600 to-red-900"
-          actions={["Maintenance", "Équipement", "Rapport technique"]}
+          actions={["Maintenance", "Contrôle technique", "Rapport technique"]}
           onClick={() => setView("technique")}
         />
       </div>
@@ -148,6 +142,7 @@ function AddAmbulance({ setView }: any) {
 
     try {
       setSaving(true);
+
       await addDoc(collection(db, "ambulances"), {
         ...form,
         fuel: Number(form.fuel || 0),
@@ -156,7 +151,7 @@ function AddAmbulance({ setView }: any) {
       });
 
       alert("Ambulance ajoutée avec succès.");
-      setView("overview");
+      setView("flotte");
     } catch (error) {
       console.error(error);
       alert("Impossible d’ajouter l’ambulance.");
@@ -167,7 +162,7 @@ function AddAmbulance({ setView }: any) {
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <Header title="Ajouter une ambulance" subtitle="Créer une unité médicale réelle" setView={setView} />
+      <Header title="Ajouter une ambulance" subtitle="Compétence réservée au Responsable Flotte" setView={setView} backTo="flotte" />
 
       <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
         <div className="col-span-7 bg-white/[0.03] border border-white/10 rounded-[30px] p-6 overflow-y-auto">
@@ -196,6 +191,7 @@ function AddAmbulance({ setView }: any) {
 
         <div className="col-span-5 bg-gradient-to-br from-red-800 to-red-950 rounded-[30px] p-6">
           <div className="text-2xl font-black mb-5">Prévisualisation</div>
+
           <div className="space-y-4 text-sm text-white/75">
             <Preview label="Matricule" value={form.matricule || "A-01"} />
             <Preview label="Plaque" value={form.plate || "Non renseignée"} />
@@ -215,7 +211,7 @@ function AddAmbulance({ setView }: any) {
 function FleetWorkspace({ setView, ambulances }: any) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <Header title="Responsable Flotte" subtitle="Supervision des véhicules et équipes" setView={setView} />
+      <Header title="Responsable Flotte" subtitle="Création, disponibilité et gestion des ambulances" setView={setView} />
 
       <div className="flex gap-3">
         <ActionButton label="Ajouter ambulance" icon={<Plus size={18} />} onClick={() => setView("add")} color="bg-red-600" />
@@ -231,7 +227,7 @@ function FleetWorkspace({ setView, ambulances }: any) {
 function DispatchWorkspace({ setView, ambulances }: any) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <Header title="Dispatch Ambulance" subtitle="Affectation des ambulances aux urgences" setView={setView} />
+      <Header title="Dispatch Ambulance" subtitle="Affectation des ambulances aux missions" setView={setView} />
 
       <div className="flex gap-3">
         <ActionButton label="Rapport missions" icon={<FileText size={18} />} onClick={() => generateAmbulanceReport(ambulances, "Rapport dispatch ambulance")} color="bg-rose-700" />
@@ -266,7 +262,7 @@ function DispatchWorkspace({ setView, ambulances }: any) {
 function TechnicalWorkspace({ setView, ambulances }: any) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <Header title="Superviseur Technique" subtitle="Maintenance, pannes et équipement médical" setView={setView} />
+      <Header title="Superviseur Technique" subtitle="Contrôle technique, maintenance et équipements" setView={setView} />
 
       <div className="flex gap-3">
         <ActionButton label="Rapport technique" icon={<FileText size={18} />} onClick={() => generateAmbulanceReport(ambulances, "Rapport technique ambulance")} color="bg-orange-600" />
@@ -285,7 +281,7 @@ function AmbulanceList({ ambulances, showActions, dispatchActions, technicalActi
 
       <div className="space-y-3">
         {ambulances.length === 0 ? (
-          <Empty text="Aucune ambulance enregistrée. Clique sur Ajouter ambulance." />
+          <Empty text="Aucune ambulance enregistrée." />
         ) : (
           ambulances.map((item: any) => (
             <AmbulanceRow
@@ -318,7 +314,7 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
         status,
         updatedAt: serverTimestamp(),
       });
-    } catch (error) {
+    } catch {
       alert("Impossible de modifier le statut.");
     }
   };
@@ -329,8 +325,32 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
         equipment,
         updatedAt: serverTimestamp(),
       });
-    } catch (error) {
+    } catch {
       alert("Impossible de modifier l’équipement.");
+    }
+  };
+
+  const createTechnicalCheck = async () => {
+    try {
+      await addDoc(collection(db, "ambulanceTechnicalChecks"), {
+        ambulanceId: item.id,
+        matricule: item.matricule,
+        plate: item.plate || "",
+        statusBeforeCheck: item.status || "",
+        equipment: item.equipment || "",
+        fuel: item.fuel || 0,
+        note: "Contrôle technique créé depuis le module Ambulance.",
+        createdAt: serverTimestamp(),
+      });
+
+      await updateDoc(doc(db, "ambulances", item.id), {
+        status: "Maintenance",
+        updatedAt: serverTimestamp(),
+      });
+
+      alert("Fiche de contrôle technique créée.");
+    } catch {
+      alert("Impossible de créer la fiche technique.");
     }
   };
 
@@ -342,9 +362,11 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
             <Ambulance size={18} className="text-red-400" />
             {item.matricule || "Ambulance"}
           </div>
+
           <div className="text-xs text-white/40 mt-1">
             {item.zone || "Zone inconnue"} • Chauffeur : {item.driver || "Non renseigné"} • Urgentiste : {item.medic || "Non renseigné"}
           </div>
+
           <div className="text-xs text-white/35 mt-1">
             Équipement : {item.equipment || "Non renseigné"} • Carburant : {item.fuel || 0}%
           </div>
@@ -361,7 +383,7 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
           {showActions && (
             <>
               <MiniButton label="Disponible" icon={<CheckCircle2 size={14} />} onClick={() => setStatus("Disponible")} className="bg-green-600" />
-              <MiniButton label="Mission" icon={<Radio size={14} />} onClick={() => setStatus("En mission")} className="bg-yellow-500 text-black" />
+              <MiniButton label="En mission" icon={<Radio size={14} />} onClick={() => setStatus("En mission")} className="bg-yellow-500 text-black" />
               <MiniButton label="Maintenance" icon={<Wrench size={14} />} onClick={() => setStatus("Maintenance")} className="bg-orange-600" />
             </>
           )}
@@ -369,14 +391,13 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
           {dispatchActions && (
             <>
               <MiniButton label="Assigner mission" icon={<Radio size={14} />} onClick={() => setStatus("En mission")} className="bg-red-600" />
-              <MiniButton label="Notifier patient" icon={<BellIcon />} onClick={() => alert("Notification patient bientôt liée aux interventions.")} className="bg-white/10" />
               <MiniButton label="Terminer mission" icon={<CheckCircle2 size={14} />} onClick={() => setStatus("Disponible")} className="bg-green-600" />
             </>
           )}
 
           {technicalActions && (
             <>
-              <MiniButton label="Maintenance" icon={<Wrench size={14} />} onClick={() => setStatus("Maintenance")} className="bg-orange-600" />
+              <MiniButton label="Contrôle technique" icon={<FileText size={14} />} onClick={createTechnicalCheck} className="bg-orange-600" />
               <MiniButton label="Équipement incomplet" icon={<AlertTriangle size={14} />} onClick={() => setEquipment("Incomplet")} className="bg-red-600" />
               <MiniButton label="Équipement complet" icon={<ShieldCheck size={14} />} onClick={() => setEquipment("Complet")} className="bg-green-600" />
             </>
@@ -385,10 +406,6 @@ function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: 
       )}
     </div>
   );
-}
-
-function BellIcon() {
-  return <Radio size={14} />;
 }
 
 async function generateAmbulanceReport(ambulances: any[], title: string) {
@@ -475,9 +492,7 @@ function printAmbulanceReport(ambulances: any[], title: string) {
               <th>Équipement</th>
             </tr>
           </thead>
-          <tbody>
-            ${rows || "<tr><td colspan='8'>Aucune ambulance enregistrée</td></tr>"}
-          </tbody>
+          <tbody>${rows || "<tr><td colspan='8'>Aucune ambulance enregistrée</td></tr>"}</tbody>
         </table>
       </body>
     </html>
@@ -487,7 +502,7 @@ function printAmbulanceReport(ambulances: any[], title: string) {
   printWindow.print();
 }
 
-function Header({ title, subtitle, setView }: any) {
+function Header({ title, subtitle, setView, backTo = "overview" }: any) {
   return (
     <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-rose-900 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
       <div>
@@ -496,7 +511,7 @@ function Header({ title, subtitle, setView }: any) {
       </div>
 
       <button
-        onClick={() => setView("overview")}
+        onClick={() => setView(backTo)}
         className="h-11 px-5 rounded-2xl bg-white/10 hover:bg-white/15 text-sm font-black flex items-center gap-2"
       >
         <ArrowLeft size={16} />
@@ -544,10 +559,7 @@ function Stat({ title, value, color }: any) {
 
 function ActionButton({ label, icon, onClick, color }: any) {
   return (
-    <button
-      onClick={onClick}
-      className={`h-11 px-4 rounded-2xl ${color} font-black text-sm flex items-center gap-2`}
-    >
+    <button onClick={onClick} className={`h-11 px-4 rounded-2xl ${color} font-black text-sm flex items-center gap-2`}>
       {icon}
       {label}
     </button>
@@ -556,10 +568,7 @@ function ActionButton({ label, icon, onClick, color }: any) {
 
 function MiniButton({ label, icon, onClick, className }: any) {
   return (
-    <button
-      onClick={onClick}
-      className={`h-9 px-3 rounded-xl text-xs font-black flex items-center gap-2 ${className}`}
-    >
+    <button onClick={onClick} className={`h-9 px-3 rounded-xl text-xs font-black flex items-center gap-2 ${className}`}>
       {icon}
       {label}
     </button>
