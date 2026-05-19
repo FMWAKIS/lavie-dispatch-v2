@@ -12,20 +12,11 @@ import {
   MapPinned,
   Users,
   Wifi,
-  UserCircle2,
+  Bike,
   LogOut,
-  ChevronDown,
 } from "lucide-react";
 
 import CountUp from "react-countup";
-
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  Tooltip,
-  XAxis,
-} from "recharts";
 
 import {
   collection,
@@ -34,6 +25,8 @@ import {
   updateDoc,
   query,
   orderBy,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -48,25 +41,12 @@ const data = [
 ];
 
 export default function Dashboard() {
-
   const [time, setTime] = useState("");
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [liveUrgences, setLiveUrgences] = useState<any[]>([]);
 
-  /* ================= PROFILE ================= */
-  const [showProfile, setShowProfile] = useState(false);
-
-  const operator = {
-    name: "Jean Mbuyi",
-    role: "Superviseur Dispatch",
-    matricule: "EMS-204",
-    email: "jm@lavie.cd",
-  };
-
   useEffect(() => {
-
     const updateClock = () => {
-
       const now = new Date();
 
       setTime(
@@ -83,7 +63,6 @@ export default function Dashboard() {
     const interval = setInterval(updateClock, 1000);
 
     return () => clearInterval(interval);
-
   }, []);
 
   useEffect(() => {
@@ -93,12 +72,12 @@ export default function Dashboard() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((docItem) => ({
+      const items = snapshot.docs.map((docItem) => ({
         id: docItem.id,
         ...docItem.data(),
       }));
 
-      setLiveUrgences(data);
+      setLiveUrgences(items);
     });
 
     return () => unsubscribe();
@@ -108,6 +87,7 @@ export default function Dashboard() {
     try {
       await updateDoc(doc(db, "interventions", id), {
         statut,
+        updatedAt: serverTimestamp(),
       });
     } catch (error) {
       console.error("Erreur mise à jour urgence:", error);
@@ -115,34 +95,93 @@ export default function Dashboard() {
     }
   };
 
+  const sendDispatchService = async (
+    intervention: any,
+    serviceType: "Moto Medivac" | "Ambulance"
+  ) => {
+    try {
+      const statut =
+        serviceType === "Moto Medivac"
+          ? "Moto Medivac envoyée"
+          : "Ambulance envoyée";
+
+      const title =
+        serviceType === "Moto Medivac"
+          ? "Moto Medivac envoyée"
+          : "Ambulance envoyée";
+
+      const message =
+        serviceType === "Moto Medivac"
+          ? "Une Moto Medivac LA VIE est en route vers votre position."
+          : "Une ambulance LA VIE est en route vers votre position.";
+
+      await updateDoc(doc(db, "interventions", intervention.id), {
+        statut,
+        assignedService: serviceType,
+        updatedAt: serverTimestamp(),
+      });
+
+      await addDoc(collection(db, "notifications"), {
+        userId: intervention.userId,
+        interventionId: intervention.id,
+        title,
+        message,
+        type: "dispatch_service",
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+
+      alert(`${serviceType} envoyée au client.`);
+    } catch (error) {
+      console.error("Erreur envoi service:", error);
+      alert("Impossible d’envoyer le service au client.");
+    }
+  };
+
+  const finishIntervention = async (intervention: any) => {
+    try {
+      await updateDoc(doc(db, "interventions", intervention.id), {
+        statut: "Terminée",
+        updatedAt: serverTimestamp(),
+      });
+
+      await addDoc(collection(db, "notifications"), {
+        userId: intervention.userId,
+        interventionId: intervention.id,
+        title: "Intervention terminée",
+        message: "Votre intervention médicale LA VIE est terminée.",
+        type: "dispatch_service",
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+
+      alert("Intervention terminée.");
+    } catch (error) {
+      console.error("Erreur fin intervention:", error);
+      alert("Impossible de terminer cette intervention.");
+    }
+  };
+
+  const activeUrgences = liveUrgences.filter(
+    (item: any) => item.statut !== "Terminée"
+  );
+
   return (
     <main className="relative h-screen overflow-hidden bg-[#020617] text-white flex">
-
-      {/* SIDEBAR */}
       <aside className="w-[250px] bg-white/[0.03] border-r border-white/10 backdrop-blur-2xl p-5 flex flex-col">
+        <div className="flex flex-col mb-10">
+          <img
+            src="/assets/logolavie.png"
+            alt="LA VIE"
+            className="h-14 object-contain"
+          />
 
-        {/* LOGO */}
-        <div className="flex items-start gap-4 mb-10">
-
-          <div className="flex flex-col">
-
-            <img
-              src="/assets/logolavie.png"
-              alt="LA VIE"
-              className="h-14 object-contain"
-            />
-
-            <div className="text-[13px] font-bold text-white mt-2 tracking-wide">
-              DISPATCH CENTER
-            </div>
-
+          <div className="text-[13px] font-bold text-white mt-2 tracking-wide">
+            DISPATCH CENTER
           </div>
-
         </div>
 
-        {/* MENU */}
         <div className="space-y-3">
-
           <button
             onClick={() => setActiveMenu("dashboard")}
             className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm font-semibold transition-all duration-300 ${
@@ -151,41 +190,8 @@ export default function Dashboard() {
                 : "bg-white/5 hover:bg-white/10"
             }`}
           >
-
             <Activity size={18} />
-
             Dashboard
-
-          </button>
-
-          <button
-            onClick={() => setActiveMenu("ambulances")}
-            className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm transition-all duration-300 ${
-              activeMenu === "ambulances"
-                ? "bg-red-600 shadow-lg shadow-red-600/30"
-                : "bg-white/5 hover:bg-white/10"
-            }`}
-          >
-
-            <Ambulance size={18} />
-
-            Ambulances
-
-          </button>
-
-          <button
-            onClick={() => setActiveMenu("motomedivac")}
-            className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm transition-all duration-300 ${
-              activeMenu === "motomedivac"
-                ? "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
-                : "bg-white/5 hover:bg-white/10"
-            }`}
-          >
-
-            <Siren size={18} />
-
-            Moto Medivac
-
           </button>
 
           <button
@@ -196,26 +202,32 @@ export default function Dashboard() {
                 : "bg-white/5 hover:bg-white/10"
             }`}
           >
-
             <Siren size={18} />
-
             Urgences
-
           </button>
 
           <button
-            onClick={() => setActiveMenu("operateurs")}
+            onClick={() => setActiveMenu("ambulances")}
             className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm transition-all duration-300 ${
-              activeMenu === "operateurs"
+              activeMenu === "ambulances"
                 ? "bg-red-600 shadow-lg shadow-red-600/30"
                 : "bg-white/5 hover:bg-white/10"
             }`}
           >
+            <Ambulance size={18} />
+            Ambulances
+          </button>
 
-            <Users size={18} />
-
-            Opérateurs
-
+          <button
+            onClick={() => setActiveMenu("motomedivac")}
+            className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm transition-all duration-300 ${
+              activeMenu === "motomedivac"
+                ? "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
+                : "bg-white/5 hover:bg-white/10"
+            }`}
+          >
+            <Bike size={18} />
+            Moto Medivac
           </button>
 
           <button
@@ -226,172 +238,54 @@ export default function Dashboard() {
                 : "bg-white/5 hover:bg-white/10"
             }`}
           >
-
             <MapPinned size={18} />
-
             Carte GPS
-
           </button>
-           <div className="relative mt-3 group">
 
-  {/* USER BUTTON */}
-  <div className="w-full bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-2 cursor-pointer hover:bg-cyan-500/20 transition-all duration-300">
-
-    <div className="flex items-center gap-2">
-
-      <div className="relative">
-
-        <div className="w-9 h-9 rounded-xl bg-cyan-600 flex items-center justify-center text-sm font-black">
-          JM
+          <button
+            onClick={() => setActiveMenu("operateurs")}
+            className={`w-full rounded-2xl px-4 py-4 flex items-center gap-3 text-sm transition-all duration-300 ${
+              activeMenu === "operateurs"
+                ? "bg-red-600 shadow-lg shadow-red-600/30"
+                : "bg-white/5 hover:bg-white/10"
+            }`}
+          >
+            <Users size={18} />
+            Opérateurs
+          </button>
         </div>
 
-        <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-green-400 border border-[#020617] animate-pulse" />
+        <div className="mt-auto pt-6">
+          <div className="rounded-3xl bg-green-500/10 border border-green-500 p-5 backdrop-blur-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <ShieldCheck className="text-green-400" size={18} />
 
-      </div>
+              <div className="text-sm font-bold text-green-400">
+                SYSTÈME ONLINE
+              </div>
+            </div>
 
-      <div>
+            <div className="text-xs text-white/40 leading-relaxed">
+              Firebase connecté. Interventions et notifications synchronisées.
+            </div>
+          </div>
 
-        <div className="text-xs font-black text-white">
-          Jean Mbuyi
+          <button
+            onClick={() => (window.location.href = "/login")}
+            className="w-full mt-4 h-12 rounded-2xl bg-white/5 hover:bg-red-600 transition-all flex items-center justify-center gap-2 text-sm font-bold"
+          >
+            <LogOut size={16} />
+            Déconnexion
+          </button>
         </div>
-
-        <div className="text-[10px] text-cyan-300">
-          Superviseur Dispatch
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-  {/* POPUP */}
-  <div className="hidden group-hover:block absolute left-0 bottom-14 w-full bg-[#0f172a] border border-cyan-500/20 rounded-2xl p-3 z-50 shadow-2xl">
-
-    <div className="flex items-center gap-2 mb-3">
-
-      <div className="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center text-sm font-black">
-        JM
-      </div>
-
-      <div>
-
-        <div className="text-xs font-bold text-white">
-          Jean Mbuyi
-        </div>
-
-        <div className="text-[10px] text-cyan-300">
-          Superviseur Dispatch
-        </div>
-
-      </div>
-
-    </div>
-
-    <div className="bg-white/5 rounded-xl p-2 mb-2">
-
-      <div className="text-[9px] text-white/40">
-        MATRICULE
-      </div>
-
-      <div className="text-xs text-white mt-1">
-        EMS-204
-      </div>
-
-    </div>
-
-    <div className="bg-white/5 rounded-xl p-2 mb-2">
-
-      <div className="text-[9px] text-white/40">
-        EMAIL
-      </div>
-
-      <div className="text-xs text-cyan-300 mt-1">
-        jm@lavie.cd
-      </div>
-
-    </div>
-
-    <div className="bg-white/5 rounded-xl p-2 mb-2">
-
-      <div className="text-[9px] text-white/40">
-        CENTRE
-      </div>
-
-      <div className="text-xs text-white mt-1">
-        LA VIE • Kinshasa
-      </div>
-
-    </div>
-
-    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-2 mb-3">
-
-      <div className="text-[9px] text-green-300">
-        STATUS
-      </div>
-
-      <div className="text-xs font-bold text-green-400 mt-1">
-        CONNECTÉ • ONLINE
-      </div>
-
-    </div>
-
-    <button
-      className="w-full bg-cyan-600 hover:bg-cyan-700 transition-all rounded-xl py-2 text-xs font-bold"
-      onClick={() => window.location.href = "/login"}
-    >
-      Déconnexion
-    </button>
-
-  </div>
-
-</div>
-        </div>
-
-{/* STATUS */}
-<div className="mt-auto pt-6 relative">
-
-  {/* BLUE GLOW UNDER CARD */}
-  <div className="absolute bottom-0 left-0 w-44 h-44 bg-cyan-500/30 blur-3xl rounded-full pointer-events-none" />
-
-  {/* CARD */}
-  <div className="relative rounded-3xl bg-green-500/10 border border-green-500 p-5 backdrop-blur-xl">
-
-    <div className="flex items-center gap-3 mb-3">
-
-      <ShieldCheck className="text-green-400" size={18} />
-
-      <div className="text-sm font-bold text-green-400">
-        SYSTÈME ONLINE
-      </div>
-
-    </div>
-
-    <div className="text-xs text-white/40 leading-relaxed">
-      Infrastructure sécurisée et opérationnelle.
-    </div>
-
-  </div>
-
-</div>
-
       </aside>
 
-      {/* CONTENT */}
       <section className="flex-1 p-5 overflow-hidden relative">
-
-        {/* ================= DASHBOARD ================= */}
         {activeMenu === "dashboard" && (
-
           <div className="flex flex-col gap-5 h-full">
-
-            {/* TOPBAR */}
             <div className="grid grid-cols-4 gap-5 h-[90px]">
-
               <div className="col-span-2 bg-white/[0.03] border border-white/10 rounded-[28px] px-6 flex items-center justify-between">
-
                 <div>
-
                   <div className="text-3xl font-black tracking-tight">
                     Dispatch Center
                   </div>
@@ -399,148 +293,87 @@ export default function Dashboard() {
                   <div className="text-xs text-white/40 mt-1">
                     Surveillance médicale intelligente — Kinshasa
                   </div>
-
                 </div>
 
                 <div className="w-14 h-14 rounded-2xl bg-red-600 flex items-center justify-center">
-
                   <Bell className="animate-pulse" />
-
                 </div>
-
               </div>
 
-              {/* CLOCK */}
               <div className="bg-white/[0.03] border border-white/10 rounded-[28px] px-6 flex flex-col justify-center">
-
                 <div className="text-[11px] text-white/40 mb-1">
                   HEURE LOCALE
                 </div>
 
-                <div className="text-2xl font-black">
-                  {time}
-                </div>
-
+                <div className="text-2xl font-black">{time}</div>
               </div>
 
-              {/* ALERT */}
               <div className="bg-red-600 rounded-[28px] px-6 flex items-center gap-4 shadow-2xl shadow-red-600/30">
-
                 <Siren className="animate-pulse" />
 
                 <div>
-
                   <div className="text-[11px] text-white/70">
-                    URGENCE ACTIVE
+                    URGENCES LIVE
                   </div>
 
                   <div className="text-sm font-bold">
-                    Accident — Gombe
+                    {liveUrgences.length} alertes reçues
                   </div>
-
                 </div>
-
               </div>
-
             </div>
 
-            {/* STATS */}
             <div className="grid grid-cols-4 gap-5 h-[130px]">
-
               <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-5">
-
                 <div className="flex justify-between items-center mb-4">
-
-                  <div className="text-[11px] text-white/40">
-                    APPELS
-                  </div>
-
+                  <div className="text-[11px] text-white/40">APPELS</div>
                   <PhoneCall size={18} className="text-yellow-400" />
-
                 </div>
 
                 <div className="text-4xl font-black text-yellow-400">
                   <CountUp end={143} duration={2} />
                 </div>
-
               </div>
 
               <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-5">
-
                 <div className="flex justify-between items-center mb-4">
-
-                  <div className="text-[11px] text-white/40">
-                    URGENCES
-                  </div>
-
+                  <div className="text-[11px] text-white/40">URGENCES</div>
                   <Siren size={18} className="text-red-500" />
-
                 </div>
 
                 <div className="text-4xl font-black text-red-500">
-                  <CountUp end={12} duration={2} />
+                  {liveUrgences.length}
                 </div>
-
               </div>
 
               <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-5">
-
                 <div className="flex justify-between items-center mb-4">
-
-                  <div className="text-[11px] text-white/40">
-                    UNITÉS
-                  </div>
-
+                  <div className="text-[11px] text-white/40">UNITÉS</div>
                   <Ambulance size={18} className="text-green-400" />
-
                 </div>
 
-                <div className="text-4xl font-black text-green-400">
-                  <CountUp end={8} duration={2} />
-                </div>
-
+                <div className="text-4xl font-black text-green-400">20</div>
               </div>
 
               <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-5">
-
                 <div className="flex justify-between items-center mb-4">
-
-                  <div className="text-[11px] text-white/40">
-                    RÉSEAU
-                  </div>
-
+                  <div className="text-[11px] text-white/40">RÉSEAU</div>
                   <Wifi size={18} className="text-blue-400" />
-
                 </div>
 
-                <div className="text-4xl font-black text-blue-400">
-                  99%
-                </div>
-
+                <div className="text-4xl font-black text-blue-400">99%</div>
               </div>
-
             </div>
 
-            {/* MAIN GRID */}
-            <div className="grid grid-cols-3 gap-5 flex-1">
-
-              {/* MAP */}
+            <div className="grid grid-cols-3 gap-5 flex-1 min-h-0">
               <div className="col-span-2 bg-white/[0.03] border border-white/10 rounded-[30px] overflow-hidden relative">
-
                 <div className="absolute top-0 left-0 right-0 z-20 p-5 flex justify-between items-center bg-gradient-to-b from-black/70 to-transparent">
-
                   <div>
-
-                    <div className="text-xl font-black">
-                      Carte GPS Live
-                    </div>
-
+                    <div className="text-xl font-black">Carte GPS Live</div>
                     <div className="text-xs text-white/40">
                       Trafic routier et positionnement des unités médicales
                     </div>
-
                   </div>
-
                 </div>
 
                 <iframe
@@ -550,163 +383,338 @@ export default function Dashboard() {
                   height="100%"
                   style={{ border: 0 }}
                 />
-
               </div>
 
-              {/* RIGHT SIDE */}
-              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-5">
+              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-5 overflow-hidden">
+                <div className="text-xl font-black mb-5">Dernières alertes</div>
 
-                <div className="text-xl font-black mb-5">
-                  Unités Live
+                <div className="space-y-3 overflow-y-auto h-[calc(100%-40px)] pr-1">
+                  {liveUrgences.slice(0, 5).map((item: any) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveMenu("urgences")}
+                      className="w-full text-left bg-white/5 rounded-2xl p-4 hover:bg-white/10 transition-all"
+                    >
+                      <div className="flex justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-sm">
+                            {item.type || "Intervention"}
+                          </div>
+
+                          <div className="text-[11px] text-white/40 mt-1">
+                            {item.userName || "Client LA VIE"}
+                          </div>
+                        </div>
+
+                        <div className="text-yellow-400 text-xs font-bold">
+                          {item.statut || "En attente"}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+
+                  {liveUrgences.length === 0 && (
+                    <div className="text-white/40 text-sm">
+                      Aucune urgence reçue.
+                    </div>
+                  )}
                 </div>
-
-                <div className="space-y-4">
-
-                  <div className="bg-white/5 rounded-2xl p-4 flex justify-between">
-
-                    <div>
-
-                      <div className="font-bold text-sm">
-                        Ambulance A-12
-                      </div>
-
-                      <div className="text-[11px] text-white/40">
-                        Gombe
-                      </div>
-
-                    </div>
-
-                    <div className="text-green-400 text-xs font-bold">
-                      DISPONIBLE
-                    </div>
-
-                  </div>
-
-                  <div className="bg-white/5 rounded-2xl p-4 flex justify-between border border-yellow-500/20">
-
-                    <div>
-
-                      <div className="font-bold text-sm text-yellow-400">
-                        Moto Medivac M-04
-                      </div>
-
-                      <div className="text-[11px] text-white/40">
-                        ETA 3 min
-                      </div>
-
-                    </div>
-
-                    <div className="text-yellow-400 text-xs font-bold animate-pulse">
-                      PRIORITAIRE
-                    </div>
-
-                  </div>
-
-                </div>
-
               </div>
-
             </div>
-
           </div>
-
         )}
 
-        {/* ================= MOTO MEDIVAC ================= */}
-        {activeMenu === "motomedivac" && (
-
-          <div className="h-full flex flex-col gap-4">
-
-            <div className="h-[85px] rounded-[30px] bg-yellow-500 text-black px-8 flex items-center justify-between shadow-2xl shadow-yellow-500/20">
-
-              <div>
-
-                <div className="text-3xl font-black">
-                  Moto Medivac
+        {activeMenu === "urgences" && (
+          <div className="h-full flex flex-col gap-4 overflow-hidden">
+            <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-orange-600 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-black/20 flex items-center justify-center backdrop-blur-xl">
+                  <Siren size={30} className="animate-pulse text-white" />
                 </div>
 
-                <div className="text-sm font-semibold opacity-70">
-                  Rapid Medical Response Unit — Kinshasa
-                </div>
+                <div>
+                  <div className="text-2xl font-black tracking-tight">
+                    Centre des Urgences Live
+                  </div>
 
+                  <div className="text-xs text-white/70 mt-1">
+                    Alertes réelles reçues depuis l’application mobile LA VIE
+                  </div>
+                </div>
               </div>
 
-              <Siren size={40} className="animate-pulse" />
+              <div className="text-right">
+                <div className="text-[11px] text-white/70">
+                  ALERTES FIREBASE
+                </div>
 
+                <div className="text-2xl font-black">
+                  {liveUrgences.length}
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4 h-[115px]">
-
-              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-                <div className="text-xs text-white/40 mb-3">
-                  UNITÉS ACTIVES
+            <div className="grid grid-cols-4 gap-4 h-[105px]">
+              <div className="bg-white/[0.03] border border-red-500/20 rounded-[26px] p-4">
+                <div className="text-[11px] text-white/40 mb-3">
+                  ALERTES REÇUES
                 </div>
-
-                <div className="text-4xl font-black text-yellow-400">
-                  12
-                </div>
-
-              </div>
-
-              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-                <div className="text-xs text-white/40 mb-3">
-                  ETA MOYEN
-                </div>
-
-                <div className="text-4xl font-black text-green-400">
-                  3m
-                </div>
-
-              </div>
-
-              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-                <div className="text-xs text-white/40 mb-3">
-                  MISSIONS
-                </div>
-
                 <div className="text-4xl font-black text-red-400">
-                  28
+                  {liveUrgences.length}
                 </div>
-
               </div>
 
-              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-                <div className="text-xs text-white/40 mb-3">
-                  IA PRIORITÉ
+              <div className="bg-white/[0.03] border border-yellow-500/20 rounded-[26px] p-4">
+                <div className="text-[11px] text-white/40 mb-3">
+                  EN DISPATCH
                 </div>
-
-                <div className="text-3xl font-black text-blue-400">
-                  ACTIVE
+                <div className="text-4xl font-black text-yellow-400">
+                  {activeUrgences.length}
                 </div>
-
               </div>
 
+              <div className="bg-white/[0.03] border border-green-500/20 rounded-[26px] p-4">
+                <div className="text-[11px] text-white/40 mb-3">
+                  UNITÉS DISPO
+                </div>
+                <div className="text-4xl font-black text-green-400">20</div>
+              </div>
+
+              <div className="bg-white/[0.03] border border-blue-500/20 rounded-[26px] p-4">
+                <div className="text-[11px] text-white/40 mb-3">
+                  TEMPS RÉPONSE
+                </div>
+                <div className="text-4xl font-black text-blue-400">4m</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
+              <div className="col-span-5 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <div className="text-xl font-black">Interventions Live</div>
+                    <div className="text-xs text-white/40 mt-1">
+                      Données synchronisées avec Firebase
+                    </div>
+                  </div>
+
+                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                </div>
+
+                <div className="space-y-3 overflow-y-auto pr-1">
+                  {liveUrgences.map((item: any) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl bg-white/5 border border-white/10 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-black text-white">
+                            {item.type || "Intervention"}
+                          </div>
+
+                          <div className="text-xs text-white/40 mt-1">
+                            {item.userName || "Client LA VIE"} •{" "}
+                            {item.userEmail || "email non disponible"}
+                          </div>
+
+                          <div className="text-xs text-white/40 mt-1">
+                            {item.lieu || "Position GPS actuelle"}
+                          </div>
+                        </div>
+
+                        <div
+                          className={`text-xs font-black ${
+                            item.statut === "Terminée"
+                              ? "text-green-400"
+                              : item.statut?.includes("envoyée")
+                              ? "text-yellow-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {item.statut || "Envoyée au dispatch"}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <button
+                          onClick={() => sendDispatchService(item, "Moto Medivac")}
+                          className="h-11 rounded-2xl bg-yellow-500 text-black font-black text-sm hover:bg-yellow-400 transition-all"
+                        >
+                          Envoyer Moto
+                        </button>
+
+                        <button
+                          onClick={() => sendDispatchService(item, "Ambulance")}
+                          className="h-11 rounded-2xl bg-red-600 text-white font-black text-sm hover:bg-red-700 transition-all"
+                        >
+                          Envoyer Ambulance
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => finishIntervention(item)}
+                        className="w-full h-11 rounded-2xl bg-green-600 text-white font-black text-sm mt-3 hover:bg-green-700 transition-all"
+                      >
+                        Intervention terminée
+                      </button>
+                    </div>
+                  ))}
+
+                  {liveUrgences.length === 0 && (
+                    <div className="text-white/40 text-sm">
+                      Aucune intervention reçue depuis l’application mobile.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="col-span-4 rounded-[26px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
+                <div className="absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between">
+                  <div>
+                    <div className="text-xl font-black">
+                      Carte Intervention Live
+                    </div>
+
+                    <div className="text-xs text-white/40 mt-1">
+                      Suivi GPS des incidents et unités
+                    </div>
+                  </div>
+                </div>
+
+                <iframe
+                  title="Urgence GPS"
+                  src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                />
+              </div>
+
+              <div className="col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
+                <div className="bg-gradient-to-br from-red-600 to-orange-500 rounded-[26px] p-5 shadow-2xl shadow-red-900/30">
+                  <div className="text-xl font-black mb-2">
+                    Actions Dispatch
+                  </div>
+
+                  <div className="text-sm text-white/80 leading-relaxed">
+                    Choisissez une intervention à gauche, puis envoyez une moto
+                    ou une ambulance. Le client reçoit une notification live.
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-5">
+                  <div className="text-lg font-black mb-4">
+                    Timeline Intervention
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <div className="text-sm">
+                        Alerte reçue depuis l’application mobile
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                      <div className="text-sm">
+                        Dispatch en attente d’assignation
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
+                      <div className="text-sm">
+                        Notification client envoyée via Firebase
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeMenu === "ambulances" && (
+          <div className="h-full flex flex-col gap-4">
+            <div className="h-[85px] rounded-[30px] bg-red-600 px-8 flex items-center justify-between shadow-2xl shadow-red-600/20">
+              <div>
+                <div className="text-3xl font-black">Ambulance Fleet</div>
+                <div className="text-sm text-white/70 mt-1">
+                  Emergency Medical Transport System — Kinshasa
+                </div>
+              </div>
+
+              <Ambulance size={40} className="animate-pulse" />
             </div>
 
             <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
-
               <div className="col-span-2 rounded-[30px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
+                <iframe
+                  title="Ambulance Map"
+                  src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                />
+              </div>
 
-                <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between">
+              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-5">
+                <div className="text-xl font-black mb-5">Ambulances Live</div>
 
-                  <div>
+                {["A-01", "A-07", "A-12"].map((unit, index) => (
+                  <div
+                    key={unit}
+                    className="bg-white/5 rounded-2xl p-4 mb-3 flex justify-between"
+                  >
+                    <div>
+                      <div className="font-bold text-sm">
+                        Ambulance {unit}
+                      </div>
 
-                    <div className="text-xl font-black text-yellow-400">
-                      GPS Moto Medivac
+                      <div className="text-[11px] text-white/40">
+                        {index === 0
+                          ? "Gombe — Disponible"
+                          : index === 1
+                          ? "Limete — En mission"
+                          : "Ngaliema — Maintenance"}
+                      </div>
                     </div>
 
-                    <div className="text-xs text-white/50 mt-1">
-                      Trafic temps réel — voies prioritaires
+                    <div
+                      className={`text-xs font-bold ${
+                        index === 0
+                          ? "text-green-400"
+                          : index === 1
+                          ? "text-yellow-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {index === 0 ? "READY" : index === 1 ? "ACTIVE" : "OFFLINE"}
                     </div>
-
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
+        {activeMenu === "motomedivac" && (
+          <div className="h-full flex flex-col gap-4">
+            <div className="h-[85px] rounded-[30px] bg-yellow-500 text-black px-8 flex items-center justify-between shadow-2xl shadow-yellow-500/20">
+              <div>
+                <div className="text-3xl font-black">Moto Medivac</div>
+                <div className="text-sm font-semibold opacity-70">
+                  Rapid Medical Response Unit — Kinshasa
                 </div>
+              </div>
 
+              <Bike size={40} className="animate-pulse" />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
+              <div className="col-span-2 rounded-[30px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
                 <iframe
                   title="Moto Medivac Map"
                   src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
@@ -714,1645 +722,105 @@ export default function Dashboard() {
                   height="100%"
                   style={{ border: 0 }}
                 />
-
               </div>
 
-              <div className="flex flex-col gap-4 min-h-0">
+              <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-5">
+                <div className="text-xl font-black mb-5">Motos Live</div>
 
-                <div className="bg-yellow-500 text-black rounded-[30px] p-4 shadow-2xl shadow-yellow-500/20">
-
-                  <div className="text-lg font-black mb-2">
-                    IA Dispatch
-                  </div>
-
-                  <div className="text-sm font-semibold">
-                    Moto M-04 recommandée
-                  </div>
-
-                  <div className="text-xs mt-2 opacity-70">
-                    Gain estimé : 11 minutes
-                  </div>
-
-                </div>
-
-                <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[30px] p-4 overflow-hidden">
-
-                  <div className="text-lg font-black mb-4">
-                    Unités Live
-                  </div>
-
-                  <div className="space-y-3">
-
-                    <div className="bg-white/5 rounded-2xl p-3 border border-yellow-500/20">
-
-                      <div className="flex justify-between">
-
-                        <div>
-
-                          <div className="font-bold text-yellow-400">
-                            Moto M-01
-                          </div>
-
-                          <div className="text-xs text-white/40 mt-1">
-                            Gombe — ETA 2 min
-                          </div>
-
-                        </div>
-
-                        <div className="text-green-400 text-xs font-bold">
-                          ACTIVE
-                        </div>
-
+                {["M-01", "M-04", "M-08"].map((unit, index) => (
+                  <div
+                    key={unit}
+                    className="bg-white/5 rounded-2xl p-4 mb-3 flex justify-between border border-yellow-500/20"
+                  >
+                    <div>
+                      <div className="font-bold text-yellow-400">
+                        Moto {unit}
                       </div>
 
-                    </div>
-
-                    <div className="bg-white/5 rounded-2xl p-3 border border-yellow-500/20">
-
-                      <div className="flex justify-between">
-
-                        <div>
-
-                          <div className="font-bold text-yellow-400">
-                            Moto M-04
-                          </div>
-
-                          <div className="text-xs text-white/40 mt-1">
-                            Limete — priorité IA
-                          </div>
-
-                        </div>
-
-                        <div className="text-red-400 text-xs font-bold animate-pulse">
-                          URGENCE
-                        </div>
-
+                      <div className="text-[11px] text-white/40">
+                        {index === 0
+                          ? "Gombe — ETA 2 min"
+                          : index === 1
+                          ? "Limete — Priorité IA"
+                          : "Ngaliema — Standby"}
                       </div>
-
                     </div>
 
-                    <div className="bg-white/5 rounded-2xl p-3 border border-yellow-500/20">
-
-                      <div className="flex justify-between">
-
-                        <div>
-
-                          <div className="font-bold text-yellow-400">
-                            Moto M-08
-                          </div>
-
-                          <div className="text-xs text-white/40 mt-1">
-                            Ngaliema — standby
-                          </div>
-
-                        </div>
-
-                        <div className="text-green-400 text-xs font-bold">
-                          READY
-                        </div>
-
-                      </div>
-
+                    <div
+                      className={`text-xs font-bold ${
+                        index === 1 ? "text-red-400" : "text-green-400"
+                      }`}
+                    >
+                      {index === 1 ? "URGENCE" : "READY"}
                     </div>
-
                   </div>
-
-                </div>
-
+                ))}
               </div>
-
             </div>
-
           </div>
-
         )}
-        {/* ================= AMBULANCES ================= */}
-{activeMenu === "ambulances" && (
 
-  <div className="h-full flex flex-col gap-4">
-
-    {/* HEADER */}
-    <div className="h-[85px] rounded-[30px] bg-red-600 px-8 flex items-center justify-between shadow-2xl shadow-red-600/20">
-
-      <div>
-
-        <div className="text-3xl font-black">
-          Ambulance Fleet
-        </div>
-
-        <div className="text-sm text-white/70 mt-1">
-          Emergency Medical Transport System — Kinshasa
-        </div>
-
-      </div>
-
-      <Ambulance size={40} className="animate-pulse" />
-
-    </div>
-
-    {/* STATS */}
-    <div className="grid grid-cols-4 gap-4 h-[115px]">
-
-      {/* ACTIVE */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-        <div className="text-xs text-white/40 mb-3">
-          AMBULANCES ACTIVES
-        </div>
-
-        <div className="text-4xl font-black text-green-400">
-          18
-        </div>
-
-      </div>
-
-      {/* MISSIONS */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-        <div className="text-xs text-white/40 mb-3">
-          MISSIONS EN COURS
-        </div>
-
-        <div className="text-4xl font-black text-yellow-400">
-          7
-        </div>
-
-      </div>
-
-      {/* RESPONSE */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-        <div className="text-xs text-white/40 mb-3">
-          TEMPS MOYEN
-        </div>
-
-        <div className="text-4xl font-black text-blue-400">
-          8m
-        </div>
-
-      </div>
-
-      {/* NETWORK */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-[30px] p-4">
-
-        <div className="text-xs text-white/40 mb-3">
-          DISPONIBILITÉ
-        </div>
-
-        <div className="text-3xl font-black text-red-400">
-          92%
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* MAIN */}
-    <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
-
-      {/* MAP */}
-      <div className="col-span-2 rounded-[30px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
-
-        {/* HEADER */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between">
-
-          <div>
-
-            <div className="text-xl font-black">
-              Ambulance GPS Tracking
-            </div>
-
-            <div className="text-xs text-white/40 mt-1">
-              Positionnement temps réel des ambulances
-            </div>
-
-          </div>
-
-          <button className="bg-red-600 hover:bg-red-700 transition px-4 py-2 rounded-2xl text-sm font-bold">
-            Rafraîchir
-          </button>
-
-        </div>
-
-        {/* MAP */}
-        <iframe
-          title="Ambulance Map"
-          src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
-          width="100%"
-          height="100%"
-          style={{ border: 0 }}
-        />
-
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="flex flex-col gap-4 min-h-0">
-
-        {/* ALERT */}
-        <div className="bg-red-600 rounded-[30px] p-4 shadow-2xl shadow-red-600/20">
-
-          <div className="text-lg font-black mb-2">
-            Urgence Critique
-          </div>
-
-          <div className="text-sm text-white/80">
-            Accident grave signalé à Limete.
-          </div>
-
-          <div className="mt-3 text-xs bg-white/10 rounded-xl px-3 py-2 inline-block">
-            Ambulance A-07 assignée
-          </div>
-
-        </div>
-
-        {/* LIVE UNITS */}
-        <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[30px] p-4 overflow-hidden">
-
-          <div className="text-lg font-black mb-4">
-            Ambulances Live
-          </div>
-
-          <div className="space-y-3">
-
-            {/* UNIT */}
-            <div className="bg-white/5 rounded-2xl p-3 border border-green-500/20">
-
-              <div className="flex items-center justify-between">
-
-                <div>
-
-                  <div className="font-bold text-green-400">
-                    Ambulance A-01
-                  </div>
-
-                  <div className="text-xs text-white/40 mt-1">
-                    Gombe — Disponible
-                  </div>
-
-                </div>
-
-                <div className="text-green-400 text-xs font-bold">
-                  READY
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* UNIT */}
-            <div className="bg-white/5 rounded-2xl p-3 border border-yellow-500/20">
-
-              <div className="flex items-center justify-between">
-
-                <div>
-
-                  <div className="font-bold text-yellow-400">
-                    Ambulance A-07
-                  </div>
-
-                  <div className="text-xs text-white/40 mt-1">
-                    Limete — En mission
-                  </div>
-
-                </div>
-
-                <div className="text-yellow-400 text-xs font-bold animate-pulse">
-                  ACTIVE
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* UNIT */}
-            <div className="bg-white/5 rounded-2xl p-3 border border-red-500/20">
-
-              <div className="flex items-center justify-between">
-
-                <div>
-
-                  <div className="font-bold text-red-400">
-                    Ambulance A-12
-                  </div>
-
-                  <div className="text-xs text-white/40 mt-1">
-                    Ngaliema — Maintenance
-                  </div>
-
-                </div>
-
-                <div className="text-red-400 text-xs font-bold">
-                  OFFLINE
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-)}
-{/* ================= URGENCES ================= */}
-{activeMenu === "urgences" && (
-
-  <div className="h-full flex flex-col gap-4 overflow-hidden">
-
-    {/* TOP ALERT BAR */}
-    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-orange-600 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
-
-      <div className="flex items-center gap-5">
-
-        <div className="w-14 h-14 rounded-2xl bg-black/20 flex items-center justify-center backdrop-blur-xl">
-          <Siren size={30} className="animate-pulse text-white" />
-        </div>
-
-        <div>
-          <div className="text-2xl font-black tracking-tight">
-            Centre des Urgences Live
-          </div>
-
-          <div className="text-xs text-white/70 mt-1">
-            Alertes réelles reçues depuis l'application mobile LA VIE
-          </div>
-        </div>
-
-      </div>
-
-      <div className="flex items-center gap-6">
-
-        <div className="text-right">
-          <div className="text-[11px] text-white/70">
-            ALERTES FIREBASE
-          </div>
-          <div className="text-2xl font-black">
-            {liveUrgences.length}
-          </div>
-        </div>
-
-        <div className="w-[1px] h-10 bg-white/20" />
-
-        <div className="text-right">
-          <div className="text-[11px] text-white/70">
-            STATUT
-          </div>
-          <div className="text-xl font-black text-green-200">
-            LIVE
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* STATS */}
-    <div className="grid grid-cols-4 gap-4 h-[105px]">
-
-      <div className="bg-white/[0.03] border border-red-500/20 rounded-[26px] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">ALERTES REÇUES</div>
-          <PhoneCall size={18} className="text-red-400" />
-        </div>
-        <div className="text-4xl font-black text-red-400">
-          {liveUrgences.length}
-        </div>
-      </div>
-
-      <div className="bg-white/[0.03] border border-yellow-500/20 rounded-[26px] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">EN DISPATCH</div>
-          <Bell size={18} className="text-yellow-400" />
-        </div>
-        <div className="text-3xl font-black text-yellow-400">
-          {liveUrgences.filter((item: any) => item.statut !== "Terminée").length}
-        </div>
-      </div>
-
-      <div className="bg-white/[0.03] border border-green-500/20 rounded-[26px] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">UNITÉS DISPO</div>
-          <Ambulance size={18} className="text-green-400" />
-        </div>
-        <div className="text-4xl font-black text-green-400">8</div>
-      </div>
-
-      <div className="bg-white/[0.03] border border-blue-500/20 rounded-[26px] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] text-white/40">TEMPS RÉPONSE</div>
-          <Activity size={18} className="text-blue-400" />
-        </div>
-        <div className="text-4xl font-black text-blue-400">4m</div>
-      </div>
-
-    </div>
-
-    {/* MAIN GRID */}
-    <div className="grid grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
-
-      {/* LEFT PANEL : ALERTES LIVE */}
-      <div className="col-span-4 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
-
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <div className="text-xl font-black">Alertes mobiles</div>
-            <div className="text-xs text-white/40 mt-1">Flux Firestore temps réel</div>
-          </div>
-          <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-        </div>
-
-        <div className="space-y-3 overflow-y-auto pr-1">
-
-          {liveUrgences.length === 0 && (
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-center">
-              <Siren size={32} className="mx-auto mb-3 text-white/30" />
-              <div className="font-black text-white/70">Aucune alerte</div>
-              <div className="text-xs text-white/40 mt-2">
-                Les SOS envoyés depuis l'app mobile apparaîtront ici.
-              </div>
-            </div>
-          )}
-
-          {liveUrgences.map((urgence: any) => (
-            <div
-              key={urgence.id}
-              className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-black text-red-400">
-                    {urgence.type || "Urgence médicale"}
-                  </div>
-                  <div className="text-xs text-white/40 mt-1">
-                    {urgence.lieu || "Position GPS actuelle"}
-                  </div>
-                </div>
-                <div className="text-[10px] font-bold text-red-300 bg-red-500/10 px-2 py-1 rounded-full">
-                  LIVE
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-white/5 rounded-xl p-3">
-                  <div className="text-white/35">CLIENT</div>
-                  <div className="font-bold mt-1 truncate">
-                    {urgence.userName || "Client LA VIE"}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-xl p-3">
-                  <div className="text-white/35">STATUT</div>
-                  <div className="font-bold mt-1 text-yellow-400 truncate">
-                    {urgence.statut || "Envoyée au dispatch"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Acceptée par dispatch")}
-                  className="h-10 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold transition-all"
-                >
-                  Accepter
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Ambulance envoyée")}
-                  className="h-10 rounded-xl bg-red-600 hover:bg-red-700 text-xs font-bold transition-all"
-                >
-                  Ambulance
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Moto Medivac envoyée")}
-                  className="h-10 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-black text-xs font-black transition-all"
-                >
-                  Moto
-                </button>
-                <button
-                  onClick={() => updateUrgenceStatus(urgence.id, "Terminée")}
-                  className="h-10 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-bold transition-all"
-                >
-                  Terminer
-                </button>
-              </div>
-            </div>
-          ))}
-
-        </div>
-
-      </div>
-
-      {/* CENTER MAP */}
-      <div className="col-span-5 flex flex-col gap-4 min-h-0 overflow-hidden">
-
-        <div className="flex-1 rounded-[26px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
-          <div className="absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between">
-            <div>
-              <div className="text-xl font-black">Carte Intervention Live</div>
-              <div className="text-xs text-white/40 mt-1">Suivi GPS des incidents et unités</div>
-            </div>
-            <div className="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-2xl backdrop-blur-xl">
-              <div className="text-[11px] text-red-300">FIREBASE LIVE</div>
-            </div>
-          </div>
-
-          <iframe
-            title="Urgence GPS"
-            src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-          />
-        </div>
-
-        <div className="h-[160px] bg-white/[0.03] border border-white/10 rounded-[26px] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-black">Timeline Intervention</div>
-            <div className="text-xs text-green-400 font-bold">LIVE TRACKING</div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-4">
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="text-sm">Alerte reçue depuis l'application mobile</div>
-              <div className="ml-auto text-xs text-white/40">LIVE</div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-3 h-3 rounded-full bg-yellow-400" />
-              <div className="text-sm">Dispatch en attente d’assignation</div>
-              <div className="ml-auto text-xs text-white/40">AUTO</div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-              <div className="text-sm">Mise à jour synchronisée avec Firebase</div>
-              <div className="ml-auto text-xs text-white/40">OK</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
-
-        <div className="bg-gradient-to-br from-red-600 to-orange-500 rounded-[26px] p-5 shadow-2xl shadow-red-900/30">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <div className="text-xl font-black">Actions Dispatch</div>
-              <div className="text-xs text-white/70 mt-1">Gestion opérationnelle</div>
-            </div>
-            <Activity className="animate-pulse" />
-          </div>
-
-          <div className="space-y-4">
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-              <div className="text-xs text-white/60">RECOMMANDATION</div>
-              <div className="text-sm font-bold mt-2">Traiter les alertes par priorité et proximité.</div>
-            </div>
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-              <div className="text-xs text-white/60">SYNCHRONISATION</div>
-              <div className="text-sm font-bold mt-2">Toute action met à jour l’app client.</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-black">Logs Temps Réel</div>
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          </div>
-
-          <div className="space-y-3 overflow-y-auto h-full pr-1">
-            {liveUrgences.slice(0, 6).map((urgence: any) => (
-              <div key={urgence.id} className="bg-white/5 rounded-2xl p-3">
-                <div className="text-xs text-white/40">{urgence.date || "Aujourd’hui"}</div>
-                <div className="text-sm mt-1">
-                  {urgence.type || "Urgence"} — {urgence.statut || "Envoyée au dispatch"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-)}
-{/* ================= OPERATEURS ================= */}
-{activeMenu === "operateurs" && (
-
-  <div className="h-full flex flex-col gap-4 overflow-hidden">
-
-    {/* TOP HEADER */}
-    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-cyan-700 via-blue-700 to-indigo-700 px-6 flex items-center justify-between shadow-2xl shadow-cyan-900/30">
-
-      <div className="flex items-center gap-5">
-
-        <div className="w-14 h-14 rounded-2xl bg-black/20 backdrop-blur-xl flex items-center justify-center">
-
-          <Users size={28} className="text-white animate-pulse" />
-
-        </div>
-
-        <div>
-
-          <div className="text-2xl font-black tracking-tight">
-            Centre Opérateurs
-          </div>
-
-          <div className="text-xs text-white/70 mt-1">
-            Coordination des dispatchers médicaux et supervision IA
-          </div>
-
-        </div>
-
-      </div>
-
-      <div className="flex items-center gap-6">
-
-        <div className="text-right">
-
-          <div className="text-[11px] text-white/70">
-            OPÉRATEURS ONLINE
-          </div>
-
-          <div className="text-2xl font-black">
-            18
-          </div>
-
-        </div>
-
-        <div className="w-[1px] h-10 bg-white/20" />
-
-        <div className="text-right">
-
-          <div className="text-[11px] text-white/70">
-            IA ASSISTANCE
-          </div>
-
-          <div className="text-xl font-black text-cyan-200">
-            ACTIVE
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* STATS */}
-    <div className="grid grid-cols-4 gap-4 h-[105px]">
-
-      <div className="bg-white/[0.03] border border-cyan-500/20 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            APPELS TRAITÉS
-          </div>
-
-          <PhoneCall size={18} className="text-cyan-400" />
-
-        </div>
-
-        <div className="text-4xl font-black text-cyan-400">
-          328
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-green-500/20 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            EFFICACITÉ
-          </div>
-
-          <ShieldCheck size={18} className="text-green-400" />
-
-        </div>
-
-        <div className="text-4xl font-black text-green-400">
-          96%
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-yellow-500/20 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            RADIO ACTIVE
-          </div>
-
-          <Bell size={18} className="text-yellow-400" />
-
-        </div>
-
-        <div className="text-3xl font-black text-yellow-400">
-          12 LIVE
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-blue-500/20 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            IA SUPPORT
-          </div>
-
-          <Activity size={18} className="text-blue-400" />
-
-        </div>
-
-        <div className="text-3xl font-black text-blue-400">
-          ONLINE
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* MAIN GRID */}
-    <div className="grid grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
-
-      {/* LEFT PANEL */}
-      <div className="col-span-3 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
-
-        <div className="flex items-center justify-between mb-5">
-
-          <div>
-
-            <div className="text-xl font-black">
-              Dispatchers Live
-            </div>
-
-            <div className="text-xs text-white/40 mt-1">
-              Personnel actif du centre
-            </div>
-
-          </div>
-
-          <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-
-        </div>
-
-        <div className="space-y-3 overflow-y-auto pr-1">
-
-          {/* OPERATOR */}
-          <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4">
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500 flex items-center justify-center font-black text-lg">
-                JM
-              </div>
-
-              <div>
-
-                <div className="font-bold">
-                  Jean Mbuyi
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  Dispatch Urgence Critique
-                </div>
-
-              </div>
-
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-
-              <div className="text-xs text-green-400 font-bold">
-                ONLINE
-              </div>
-
-              <div className="text-xs text-white/50">
-                42 appels
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center font-black text-lg">
-                SK
-              </div>
-
-              <div>
-
-                <div className="font-bold">
-                  Sarah Kanku
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  Coordination Moto Medivac
-                </div>
-
-              </div>
-
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-
-              <div className="text-xs text-yellow-400 font-bold">
-                RADIO LIVE
-              </div>
-
-              <div className="text-xs text-white/50">
-                28 missions
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500 flex items-center justify-center font-black text-lg">
-                AL
-              </div>
-
-              <div>
-
-                <div className="font-bold">
-                  Alain Lemba
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  IA Routing & GPS
-                </div>
-
-              </div>
-
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-
-              <div className="text-xs text-green-400 font-bold">
-                ACTIVE
-              </div>
-
-              <div className="text-xs text-white/50">
-                11 routes IA
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* CENTER */}
-      <div className="col-span-6 flex flex-col gap-4 min-h-0 overflow-hidden">
-
-        {/* COMMAND PANEL */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-[26px] p-5 h-[220px]">
-
-          <div className="flex items-center justify-between mb-5">
-
-            <div>
-
-              <div className="text-xl font-black">
-                Command Center IA
-              </div>
-
+        {activeMenu === "gps" && (
+          <div className="h-full rounded-[30px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
+            <div className="absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/80 to-transparent">
+              <div className="text-2xl font-black">Carte GPS Kinshasa</div>
               <div className="text-xs text-white/40 mt-1">
-                Analyse des flux médicaux et dispatch intelligent
+                Trafic en temps réel et suivi des unités médicales.
               </div>
-
             </div>
 
-            <div className="bg-cyan-500/20 border border-cyan-500/20 px-4 py-2 rounded-2xl">
-
-              <div className="text-xs text-cyan-300 font-bold">
-                IA CONNECTÉE
-              </div>
-
-            </div>
-
+            <iframe
+              title="Carte GPS"
+              src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+            />
           </div>
-
-          <ResponsiveContainer width="100%" height="70%">
-
-            <AreaChart data={data}>
-
-              <defs>
-
-                <linearGradient id="color" x1="0" y1="0" x2="0" y2="1">
-
-                  <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.8} />
-
-                  <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
-
-                </linearGradient>
-
-              </defs>
-
-              <XAxis
-                dataKey="h"
-                stroke="#94a3b8"
-                fontSize={12}
-              />
-
-              <Tooltip />
-
-              <Area
-                type="monotone"
-                dataKey="v"
-                stroke="#22d3ee"
-                fill="url(#color)"
-                strokeWidth={3}
-              />
-
-            </AreaChart>
-
-          </ResponsiveContainer>
-
-        </div>
-
-        {/* RADIO COMM */}
-        <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-5 overflow-hidden flex flex-col">
-
-          <div className="flex items-center justify-between mb-5">
-
-            <div>
-
-              <div className="text-xl font-black">
-                Communications Radio
-              </div>
-
-              <div className="text-xs text-white/40 mt-1">
-                Flux radio sécurisé temps réel
-              </div>
-
-            </div>
-
-            <div className="text-xs font-bold text-green-400">
-              ENCRYPTED LIVE
-            </div>
-
-          </div>
-
-          <div className="space-y-3 overflow-y-auto pr-1">
-
-            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4">
-
-              <div className="flex justify-between items-center mb-2">
-
-                <div className="font-bold text-cyan-300">
-                  RADIO EMS-04
-                </div>
-
-                <div className="text-xs text-white/40">
-                  18:42
-                </div>
-
-              </div>
-
-              <div className="text-sm text-white/80">
-                “Patient stabilisé, arrivée prévue dans 4 minutes.”
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-4">
-
-              <div className="flex justify-between items-center mb-2">
-
-                <div className="font-bold text-yellow-300">
-                  MOTO MEDIVAC
-                </div>
-
-                <div className="text-xs text-white/40">
-                  18:45
-                </div>
-
-              </div>
-
-              <div className="text-sm text-white/80">
-                “Circulation dense sur Lumumba, demande itinéraire IA.”
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-4">
-
-              <div className="flex justify-between items-center mb-2">
-
-                <div className="font-bold text-green-300">
-                  CENTRAL DISPATCH
-                </div>
-
-                <div className="text-xs text-white/40">
-                  18:47
-                </div>
-
-              </div>
-
-              <div className="text-sm text-white/80">
-                “Nouvelle unité assignée automatiquement par IA.”
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
-
-        {/* AI STATUS */}
-        <div className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[26px] p-5 shadow-2xl shadow-cyan-900/30">
-
-          <div className="flex items-center justify-between mb-5">
-
-            <div>
-
-              <div className="text-xl font-black">
-                Assistant IA
-              </div>
-
-              <div className="text-xs text-white/70 mt-1">
-                Support opérationnel intelligent
-              </div>
-
-            </div>
-
-            <Activity className="animate-pulse" />
-
-          </div>
-
-          <div className="space-y-4">
-
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-
-              <div className="text-xs text-white/60">
-                OPTIMISATION
-              </div>
-
-              <div className="text-sm font-bold mt-2">
-                Temps moyen réduit de 18%
-              </div>
-
-            </div>
-
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-
-              <div className="text-xs text-white/60">
-                TRAFIC ANALYSÉ
-              </div>
-
-              <div className="text-sm font-bold mt-2">
-                14 routes alternatives générées
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* ACTIVITY FEED */}
-        <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden">
-
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-lg font-black">
-              Activité Temps Réel
-            </div>
-
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-
-          </div>
-
-          <div className="space-y-3 overflow-y-auto h-full pr-1">
-
-            <div className="bg-white/5 rounded-2xl p-3">
-
-              <div className="text-xs text-white/40">
-                18:48
-              </div>
-
-              <div className="text-sm mt-1">
-                Opérateur JM a traité un appel critique.
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-3 border border-cyan-500/20">
-
-              <div className="text-xs text-cyan-300">
-                18:49 — IA
-              </div>
-
-              <div className="text-sm mt-1">
-                Réallocation automatique des unités EMS.
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-3">
-
-              <div className="text-xs text-white/40">
-                18:50
-              </div>
-
-              <div className="text-sm mt-1">
-                Canal radio sécurisé synchronisé.
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-)}
-{/* ================= CARTE GPS ================= */}
-{activeMenu === "gps" && (
-
-  <div className="h-full flex flex-col gap-4 overflow-hidden">
-
-    {/* TOP HEADER */}
-    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-slate-800 via-cyan-900 to-slate-900 px-6 flex items-center justify-between shadow-2xl shadow-cyan-900/30 border border-cyan-500/10">
-
-      <div className="flex items-center gap-5">
-
-        <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 backdrop-blur-xl flex items-center justify-center">
-
-          <MapPinned size={28} className="text-cyan-300 animate-pulse" />
-
-        </div>
-
-        <div>
-
-          <div className="text-2xl font-black tracking-tight">
-            Tactical GPS Command
-          </div>
-
-          <div className="text-xs text-cyan-100/60 mt-1">
-            Surveillance temps réel des unités médicales — Kinshasa
-          </div>
-
-        </div>
-
-      </div>
-
-      <div className="flex items-center gap-6">
-
-        <div className="text-right">
-
-          <div className="text-[11px] text-cyan-100/50">
-            UNITÉS TRACKÉES
-          </div>
-
-          <div className="text-2xl font-black text-cyan-300">
-            24
-          </div>
-
-        </div>
-
-        <div className="w-[1px] h-10 bg-white/10" />
-
-        <div className="text-right">
-
-          <div className="text-[11px] text-cyan-100/50">
-            IA ROUTING
-          </div>
-
-          <div className="text-xl font-black text-green-400">
-            ACTIVE
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* TOP STATS */}
-    <div className="grid grid-cols-4 gap-4 h-[100px]">
-
-      <div className="bg-white/[0.03] border border-cyan-500/10 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            AMBULANCES LIVE
-          </div>
-
-          <Ambulance size={18} className="text-green-400" />
-
-        </div>
-
-        <div className="text-4xl font-black text-green-400">
-          08
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-yellow-500/10 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            MOTO MEDIVAC
-          </div>
-
-          <Siren size={18} className="text-yellow-400" />
-
-        </div>
-
-        <div className="text-4xl font-black text-yellow-400">
-          12
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-red-500/10 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            ZONES CRITIQUES
-          </div>
-
-          <Bell size={18} className="text-red-400" />
-
-        </div>
-
-        <div className="text-4xl font-black text-red-400">
-          05
-        </div>
-
-      </div>
-
-      <div className="bg-white/[0.03] border border-blue-500/10 rounded-[26px] p-4">
-
-        <div className="flex items-center justify-between mb-3">
-
-          <div className="text-[11px] text-white/40">
-            TRAFIC IA
-          </div>
-
-          <Activity size={18} className="text-cyan-400" />
-
-        </div>
-
-        <div className="text-3xl font-black text-cyan-400">
-          OPTIMAL
-        </div>
-
-      </div>
-
-    </div>
-
-    {/* MAIN GRID */}
-    <div className="grid grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
-
-      {/* LEFT PANEL */}
-      <div className="col-span-3 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden flex flex-col">
-
-        <div className="flex items-center justify-between mb-5">
-
-          <div>
-
-            <div className="text-xl font-black">
-              Tactical Feed
-            </div>
-
-            <div className="text-xs text-white/40 mt-1">
-              Activité GPS temps réel
-            </div>
-
-          </div>
-
-          <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-
-        </div>
-
-        <div className="space-y-3 overflow-y-auto pr-1">
-
-          <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4">
-
-            <div className="flex items-center justify-between">
-
+        )}
+
+        {activeMenu === "operateurs" && (
+          <div className="h-full flex flex-col gap-5">
+            <div className="h-[85px] rounded-[30px] bg-cyan-600 px-8 flex items-center justify-between shadow-2xl shadow-cyan-600/20">
               <div>
-
-                <div className="font-black text-green-400">
-                  Ambulance A-12
+                <div className="text-3xl font-black">Opérateurs</div>
+                <div className="text-sm text-white/70 mt-1">
+                  Gestion des agents du centre de dispatch.
                 </div>
+              </div>
 
-                <div className="text-xs text-white/40 mt-1">
-                  Gombe — vitesse 62 km/h
+              <Users size={40} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-5">
+              {["Jean Mbuyi", "Sarah Kalala", "David Mbala"].map((name, index) => (
+                <div
+                  key={name}
+                  className="rounded-[30px] bg-white/[0.03] border border-white/10 p-6"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-cyan-600 flex items-center justify-center text-xl font-black mb-4">
+                    {name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </div>
+
+                  <div className="text-xl font-black">{name}</div>
+                  <div className="text-white/40 text-sm mt-1">
+                    {index === 0
+                      ? "Superviseur Dispatch"
+                      : "Opérateur médical"}
+                  </div>
+
+                  <div className="mt-5 text-green-400 text-sm font-black">
+                    CONNECTÉ • ONLINE
+                  </div>
                 </div>
-
-              </div>
-
-              <div className="text-xs text-green-300 font-bold">
-                LIVE
-              </div>
-
+              ))}
             </div>
-
           </div>
-
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <div className="font-black text-yellow-400">
-                  Moto M-04
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  Limete — route prioritaire IA
-                </div>
-
-              </div>
-
-              <div className="text-xs text-yellow-300 font-bold animate-pulse">
-                PRIORITÉ
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <div className="font-black text-red-400">
-                  Zone Saturée
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  Boulevard Lumumba
-                </div>
-
-              </div>
-
-              <div className="text-xs text-red-300 font-bold">
-                78%
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <div className="font-black text-cyan-300">
-                  IA Routing
-                </div>
-
-                <div className="text-xs text-white/40 mt-1">
-                  Nouvelle route générée
-                </div>
-
-              </div>
-
-              <div className="text-xs text-cyan-200 font-bold">
-                UPDATE
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* CENTER MAP */}
-      <div className="col-span-6 relative rounded-[26px] overflow-hidden border border-cyan-500/10 bg-white/[0.03]">
-
-        {/* MAP OVERLAY */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between">
-
-          <div>
-
-            <div className="text-2xl font-black">
-              Tactical Medical Map
-            </div>
-
-            <div className="text-xs text-white/40 mt-1">
-              IA navigation • unités live • trafic intelligent
-            </div>
-
-          </div>
-
-          <div className="flex items-center gap-3">
-
-            <div className="bg-green-500/20 border border-green-500/20 px-4 py-2 rounded-2xl backdrop-blur-xl">
-
-              <div className="text-xs text-green-300 font-bold">
-                LIVE GPS
-              </div>
-
-            </div>
-
-            <div className="bg-cyan-500/20 border border-cyan-500/20 px-4 py-2 rounded-2xl backdrop-blur-xl">
-
-              <div className="text-xs text-cyan-300 font-bold">
-                AI ACTIVE
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* RADAR EFFECT */}
-        <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-
-          <div className="w-[320px] h-[320px] rounded-full border border-cyan-400/10 animate-ping" />
-
-        </div>
-
-        {/* MAP */}
-        <iframe
-          title="GPS Tactical Map"
-          src="https://maps.google.com/maps?q=Kinshasa%20traffic&t=&z=12&ie=UTF8&iwloc=&output=embed"
-          width="100%"
-          height="100%"
-          style={{ border: 0 }}
-        />
-
-      </div>
-        
-      {/* RIGHT PANEL */}
-      <div className="col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
-
-        {/* AI ANALYTICS */}
-        <div className="bg-gradient-to-br from-cyan-700 to-blue-900 rounded-[26px] p-5 shadow-2xl shadow-cyan-900/30">
-
-          <div className="flex items-center justify-between mb-5">
-
-            <div>
-
-              <div className="text-xl font-black">
-                IA Navigation
-              </div>
-
-              <div className="text-xs text-white/70 mt-1">
-                Analyse dynamique trafic
-              </div>
-
-            </div>
-
-            <Activity className="animate-pulse" />
-
-          </div>
-
-          <div className="space-y-4">
-
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-
-              <div className="text-xs text-white/60">
-                ROUTES OPTIMISÉES
-              </div>
-
-              <div className="text-sm font-bold mt-2">
-                14 itinéraires recalculés
-              </div>
-
-            </div>
-
-            <div className="bg-black/20 rounded-2xl p-4 backdrop-blur-xl">
-
-              <div className="text-xs text-white/60">
-                TEMPS GAGNÉ
-              </div>
-
-              <div className="text-sm font-bold mt-2">
-                -11 minutes moyenne
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* LIVE MONITOR */}
-        <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-[26px] p-4 overflow-hidden">
-
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-lg font-black">
-              Live Monitoring
-            </div>
-
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-
-          </div>
-
-          <div className="space-y-3 overflow-y-auto h-full pr-1">
-
-            <div className="bg-white/5 rounded-2xl p-3">
-
-              <div className="text-xs text-white/40">
-                18:54
-              </div>
-
-              <div className="text-sm mt-1">
-                Ambulance A-08 entrée zone critique.
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-3 border border-cyan-500/20">
-
-              <div className="text-xs text-cyan-300">
-                18:55 — IA
-              </div>
-
-              <div className="text-sm mt-1">
-                Nouvel itinéraire envoyé à Moto M-04.
-              </div>
-
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-3">
-
-              <div className="text-xs text-white/40">
-                18:56
-              </div>
-
-              <div className="text-sm mt-1">
-                Trafic réduit sur axe Ngaliema.
-              </div>
-
-            </div>
-
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3">
-
-              <div className="text-xs text-red-300">
-                18:57 — ALERTE
-              </div>
-
-              <div className="text-sm mt-1">
-                Congestion détectée Boulevard Lumumba.
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-)}
-
-
+        )}
       </section>
-
     </main>
   );
 }
