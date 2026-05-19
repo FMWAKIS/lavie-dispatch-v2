@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Ambulance,
   Plus,
   Wrench,
   Radio,
-  MapPinned,
   ShieldCheck,
   ArrowLeft,
   Fuel,
   UserRound,
   Activity,
+  FileText,
+  Printer,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 import {
@@ -48,29 +51,27 @@ export default function AmbulancesModule() {
     return () => unsubscribe();
   }, []);
 
-  if (view === "add") {
-    return <AddAmbulance setView={setView} />;
-  }
+  const stats = useMemo(() => {
+    return {
+      total: ambulances.length,
+      disponibles: ambulances.filter((a) => a.status === "Disponible").length,
+      mission: ambulances.filter((a) => a.status === "En mission").length,
+      maintenance: ambulances.filter((a) => a.status === "Maintenance").length,
+    };
+  }, [ambulances]);
 
-  if (view === "flotte") {
-    return <FleetWorkspace setView={setView} ambulances={ambulances} />;
-  }
-
-  if (view === "dispatch") {
-    return <DispatchWorkspace setView={setView} ambulances={ambulances} />;
-  }
-
-  if (view === "technique") {
-    return <TechnicalWorkspace setView={setView} ambulances={ambulances} />;
-  }
+  if (view === "add") return <AddAmbulance setView={setView} />;
+  if (view === "flotte") return <FleetWorkspace setView={setView} ambulances={ambulances} />;
+  if (view === "dispatch") return <DispatchWorkspace setView={setView} ambulances={ambulances} />;
+  if (view === "technique") return <TechnicalWorkspace setView={setView} ambulances={ambulances} />;
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <div className="h-[85px] rounded-[30px] bg-red-600 px-8 flex items-center justify-between shadow-2xl shadow-red-600/20">
+      <div className="h-[85px] rounded-[30px] bg-gradient-to-r from-red-800 via-red-700 to-rose-900 px-8 flex items-center justify-between shadow-2xl shadow-red-900/30">
         <div>
           <div className="text-3xl font-black">Ambulance Fleet</div>
           <div className="text-sm text-white/70 mt-1">
-            Gestion complète des ambulances — Kinshasa
+            Gestion réelle des ambulances connectée à Firestore
           </div>
         </div>
 
@@ -79,24 +80,24 @@ export default function AmbulancesModule() {
           className="h-12 px-5 rounded-2xl bg-white text-red-700 font-black flex items-center gap-2"
         >
           <Plus size={18} />
-          Ajouter
+          Ajouter ambulance
         </button>
       </div>
 
       <div className="grid grid-cols-4 gap-4 h-[115px]">
-        <Stat title="AMBULANCES" value={ambulances.length || 18} color="text-green-400" />
-        <Stat title="DISPONIBLES" value={ambulances.filter((a) => a.status === "Disponible").length || 8} color="text-cyan-400" />
-        <Stat title="EN MISSION" value={ambulances.filter((a) => a.status === "En mission").length || 7} color="text-yellow-400" />
-        <Stat title="MAINTENANCE" value={ambulances.filter((a) => a.status === "Maintenance").length || 3} color="text-red-400" />
+        <Stat title="AMBULANCES" value={stats.total} color="text-red-400" />
+        <Stat title="DISPONIBLES" value={stats.disponibles} color="text-green-400" />
+        <Stat title="EN MISSION" value={stats.mission} color="text-yellow-400" />
+        <Stat title="MAINTENANCE" value={stats.maintenance} color="text-orange-400" />
       </div>
 
       <div className="grid grid-cols-3 gap-5 flex-1 min-h-0">
         <WorkspaceCard
           title="Responsable Flotte"
-          subtitle="Supervision des véhicules"
+          subtitle="Disponibilité & équipes"
           icon={<Ambulance size={34} />}
           color="from-red-700 to-red-950"
-          actions={["Disponibilité", "Équipes", "Affectations"]}
+          actions={["Ajouter ambulance", "Changer statut", "Rapport flotte"]}
           onClick={() => setView("flotte")}
         />
 
@@ -104,8 +105,8 @@ export default function AmbulancesModule() {
           title="Dispatch Ambulance"
           subtitle="Missions terrain"
           icon={<Radio size={34} />}
-          color="from-cyan-700 to-blue-950"
-          actions={["Assigner", "Suivre ETA", "Notifier patient"]}
+          color="from-rose-700 to-red-950"
+          actions={["Mettre en mission", "Notifier patient", "Rapport missions"]}
           onClick={() => setView("dispatch")}
         />
 
@@ -113,8 +114,8 @@ export default function AmbulancesModule() {
           title="Superviseur Technique"
           subtitle="Maintenance & équipement"
           icon={<Wrench size={34} />}
-          color="from-yellow-600 to-orange-900"
-          actions={["Pannes", "Équipement", "Contrôle technique"]}
+          color="from-orange-600 to-red-900"
+          actions={["Maintenance", "Équipement", "Rapport technique"]}
           onClick={() => setView("technique")}
         />
       </div>
@@ -124,16 +125,15 @@ export default function AmbulancesModule() {
 
 function AddAmbulance({ setView }: any) {
   const [saving, setSaving] = useState(false);
-
   const [form, setForm] = useState({
     matricule: "",
+    plate: "",
     driver: "",
     medic: "",
     zone: "",
     status: "Disponible",
     fuel: "100",
     equipment: "Complet",
-    plate: "",
   });
 
   const update = (field: string, value: string) => {
@@ -148,7 +148,6 @@ function AddAmbulance({ setView }: any) {
 
     try {
       setSaving(true);
-
       await addDoc(collection(db, "ambulances"), {
         ...form,
         fuel: Number(form.fuel || 0),
@@ -168,11 +167,7 @@ function AddAmbulance({ setView }: any) {
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
-      <Header
-        title="Ajouter une ambulance"
-        subtitle="Création d’une nouvelle unité médicale"
-        setView={setView}
-      />
+      <Header title="Ajouter une ambulance" subtitle="Créer une unité médicale réelle" setView={setView} />
 
       <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
         <div className="col-span-7 bg-white/[0.03] border border-white/10 rounded-[30px] p-6 overflow-y-auto">
@@ -186,32 +181,8 @@ function AddAmbulance({ setView }: any) {
             <Input label="Zone" value={form.zone} onChange={(v: string) => update("zone", v)} placeholder="Gombe, Limete..." />
             <Input label="Carburant %" value={form.fuel} onChange={(v: string) => update("fuel", v)} placeholder="100" />
 
-            <div>
-              <div className="text-xs text-white/40 mb-2">Statut</div>
-              <select
-                value={form.status}
-                onChange={(e) => update("status", e.target.value)}
-                className="w-full h-14 rounded-2xl bg-[#111827] border border-white/10 px-4 outline-none"
-              >
-                <option>Disponible</option>
-                <option>En mission</option>
-                <option>Maintenance</option>
-                <option>Hors service</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="text-xs text-white/40 mb-2">Équipement médical</div>
-              <select
-                value={form.equipment}
-                onChange={(e) => update("equipment", e.target.value)}
-                className="w-full h-14 rounded-2xl bg-[#111827] border border-white/10 px-4 outline-none"
-              >
-                <option>Complet</option>
-                <option>À vérifier</option>
-                <option>Incomplet</option>
-              </select>
-            </div>
+            <Select label="Statut" value={form.status} onChange={(v: string) => update("status", v)} options={["Disponible", "En mission", "Maintenance", "Hors service"]} />
+            <Select label="Équipement médical" value={form.equipment} onChange={(v: string) => update("equipment", v)} options={["Complet", "À vérifier", "Incomplet"]} />
           </div>
 
           <button
@@ -223,11 +194,11 @@ function AddAmbulance({ setView }: any) {
           </button>
         </div>
 
-        <div className="col-span-5 bg-gradient-to-br from-red-700 to-red-950 rounded-[30px] p-6">
-          <div className="text-2xl font-black mb-5">Fiche unité</div>
-
+        <div className="col-span-5 bg-gradient-to-br from-red-800 to-red-950 rounded-[30px] p-6">
+          <div className="text-2xl font-black mb-5">Prévisualisation</div>
           <div className="space-y-4 text-sm text-white/75">
             <Preview label="Matricule" value={form.matricule || "A-01"} />
+            <Preview label="Plaque" value={form.plate || "Non renseignée"} />
             <Preview label="Chauffeur" value={form.driver || "Non renseigné"} />
             <Preview label="Urgentiste" value={form.medic || "Non renseigné"} />
             <Preview label="Zone" value={form.zone || "Non renseignée"} />
@@ -246,13 +217,13 @@ function FleetWorkspace({ setView, ambulances }: any) {
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Header title="Responsable Flotte" subtitle="Supervision des véhicules et équipes" setView={setView} />
 
-      <div className="grid grid-cols-3 gap-4 h-[145px]">
-        <Action icon={<Ambulance />} title="Disponibilité" text="Contrôler les unités prêtes." />
-        <Action icon={<UserRound />} title="Équipes" text="Voir chauffeur et urgentiste." />
-        <Action icon={<Fuel />} title="Carburant" text="Surveiller l’autonomie." />
+      <div className="flex gap-3">
+        <ActionButton label="Ajouter ambulance" icon={<Plus size={18} />} onClick={() => setView("add")} color="bg-red-600" />
+        <ActionButton label="Générer rapport" icon={<FileText size={18} />} onClick={() => generateAmbulanceReport(ambulances, "Rapport flotte ambulance")} color="bg-white/10" />
+        <ActionButton label="Imprimer" icon={<Printer size={18} />} onClick={() => printAmbulanceReport(ambulances, "Rapport flotte ambulance")} color="bg-white/10" />
       </div>
 
-      <AmbulanceList ambulances={ambulances} />
+      <AmbulanceList ambulances={ambulances} showActions />
     </div>
   );
 }
@@ -261,6 +232,11 @@ function DispatchWorkspace({ setView, ambulances }: any) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Header title="Dispatch Ambulance" subtitle="Affectation des ambulances aux urgences" setView={setView} />
+
+      <div className="flex gap-3">
+        <ActionButton label="Rapport missions" icon={<FileText size={18} />} onClick={() => generateAmbulanceReport(ambulances, "Rapport dispatch ambulance")} color="bg-rose-700" />
+        <ActionButton label="Imprimer" icon={<Printer size={18} />} onClick={() => printAmbulanceReport(ambulances, "Rapport dispatch ambulance")} color="bg-white/10" />
+      </div>
 
       <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
         <div className="col-span-7 rounded-[26px] overflow-hidden border border-white/10 relative bg-white/[0.03]">
@@ -280,13 +256,7 @@ function DispatchWorkspace({ setView, ambulances }: any) {
 
         <div className="col-span-5 bg-white/[0.03] border border-white/10 rounded-[26px] p-5 overflow-y-auto">
           <div className="text-xl font-black mb-4">Ambulances assignables</div>
-          <div className="space-y-3">
-            {ambulances.length === 0 ? (
-              <Empty text="Aucune ambulance enregistrée pour le moment." />
-            ) : (
-              ambulances.map((item: any) => <AmbulanceRow key={item.id} item={item} />)
-            )}
-          </div>
+          <AmbulanceList ambulances={ambulances} dispatchActions />
         </div>
       </div>
     </div>
@@ -294,71 +264,45 @@ function DispatchWorkspace({ setView, ambulances }: any) {
 }
 
 function TechnicalWorkspace({ setView, ambulances }: any) {
-  const setMaintenance = async (id: string) => {
-    await updateDoc(doc(db, "ambulances", id), {
-      status: "Maintenance",
-      updatedAt: serverTimestamp(),
-    });
-  };
-
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Header title="Superviseur Technique" subtitle="Maintenance, pannes et équipement médical" setView={setView} />
 
-      <div className="grid grid-cols-3 gap-4 h-[145px]">
-        <Action icon={<Wrench />} title="Maintenance" text="Mettre une unité en contrôle." />
-        <Action icon={<ShieldCheck />} title="Équipement" text="Contrôler matériel médical." />
-        <Action icon={<Activity />} title="Disponibilité" text="Réduire les risques techniques." />
+      <div className="flex gap-3">
+        <ActionButton label="Rapport technique" icon={<FileText size={18} />} onClick={() => generateAmbulanceReport(ambulances, "Rapport technique ambulance")} color="bg-orange-600" />
+        <ActionButton label="Imprimer" icon={<Printer size={18} />} onClick={() => printAmbulanceReport(ambulances, "Rapport technique ambulance")} color="bg-white/10" />
       </div>
 
-      <div className="bg-white/[0.03] border border-white/10 rounded-[26px] p-5 flex-1 overflow-y-auto">
-        <div className="text-xl font-black mb-4">Contrôle technique</div>
-
-        <div className="space-y-3">
-          {ambulances.length === 0 ? (
-            <Empty text="Aucune ambulance enregistrée." />
-          ) : (
-            ambulances.map((item: any) => (
-              <div key={item.id} className="bg-white/5 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <div className="font-black">{item.matricule}</div>
-                  <div className="text-xs text-white/40 mt-1">
-                    Équipement : {item.equipment || "Non renseigné"} • Carburant : {item.fuel || 0}%
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setMaintenance(item.id)}
-                  className="h-10 px-4 rounded-xl bg-yellow-500 text-black text-xs font-black"
-                >
-                  Maintenance
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <AmbulanceList ambulances={ambulances} technicalActions />
     </div>
   );
 }
 
-function AmbulanceList({ ambulances }: any) {
+function AmbulanceList({ ambulances, showActions, dispatchActions, technicalActions }: any) {
   return (
     <div className="bg-white/[0.03] border border-white/10 rounded-[26px] p-5 flex-1 overflow-y-auto">
       <div className="text-xl font-black mb-4">Liste des ambulances</div>
 
       <div className="space-y-3">
         {ambulances.length === 0 ? (
-          <Empty text="Aucune ambulance enregistrée. Clique sur Ajouter." />
+          <Empty text="Aucune ambulance enregistrée. Clique sur Ajouter ambulance." />
         ) : (
-          ambulances.map((item: any) => <AmbulanceRow key={item.id} item={item} />)
+          ambulances.map((item: any) => (
+            <AmbulanceRow
+              key={item.id}
+              item={item}
+              showActions={showActions}
+              dispatchActions={dispatchActions}
+              technicalActions={technicalActions}
+            />
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function AmbulanceRow({ item }: any) {
+function AmbulanceRow({ item, showActions, dispatchActions, technicalActions }: any) {
   const color =
     item.status === "Disponible"
       ? "text-green-400"
@@ -368,26 +312,184 @@ function AmbulanceRow({ item }: any) {
       ? "text-orange-400"
       : "text-red-400";
 
+  const setStatus = async (status: string) => {
+    try {
+      await updateDoc(doc(db, "ambulances", item.id), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      alert("Impossible de modifier le statut.");
+    }
+  };
+
+  const setEquipment = async (equipment: string) => {
+    try {
+      await updateDoc(doc(db, "ambulances", item.id), {
+        equipment,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      alert("Impossible de modifier l’équipement.");
+    }
+  };
+
   return (
-    <div className="bg-white/5 rounded-2xl p-4 flex items-center justify-between border border-white/10">
-      <div>
-        <div className="font-black">{item.matricule || "Ambulance"}</div>
-        <div className="text-xs text-white/40 mt-1">
-          {item.zone || "Zone inconnue"} • Chauffeur : {item.driver || "Non renseigné"}
+    <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="font-black flex items-center gap-2">
+            <Ambulance size={18} className="text-red-400" />
+            {item.matricule || "Ambulance"}
+          </div>
+          <div className="text-xs text-white/40 mt-1">
+            {item.zone || "Zone inconnue"} • Chauffeur : {item.driver || "Non renseigné"} • Urgentiste : {item.medic || "Non renseigné"}
+          </div>
+          <div className="text-xs text-white/35 mt-1">
+            Équipement : {item.equipment || "Non renseigné"} • Carburant : {item.fuel || 0}%
+          </div>
+        </div>
+
+        <div className="text-right">
+          <div className={`text-xs font-black ${color}`}>{item.status || "Disponible"}</div>
+          <div className="text-xs text-white/35 mt-1">{item.plate || "Plaque inconnue"}</div>
         </div>
       </div>
 
-      <div className="text-right">
-        <div className={`text-xs font-black ${color}`}>{item.status || "Disponible"}</div>
-        <div className="text-xs text-white/35 mt-1">{item.fuel || 0}% carburant</div>
-      </div>
+      {(showActions || dispatchActions || technicalActions) && (
+        <div className="flex flex-wrap gap-2 mt-4">
+          {showActions && (
+            <>
+              <MiniButton label="Disponible" icon={<CheckCircle2 size={14} />} onClick={() => setStatus("Disponible")} className="bg-green-600" />
+              <MiniButton label="Mission" icon={<Radio size={14} />} onClick={() => setStatus("En mission")} className="bg-yellow-500 text-black" />
+              <MiniButton label="Maintenance" icon={<Wrench size={14} />} onClick={() => setStatus("Maintenance")} className="bg-orange-600" />
+            </>
+          )}
+
+          {dispatchActions && (
+            <>
+              <MiniButton label="Assigner mission" icon={<Radio size={14} />} onClick={() => setStatus("En mission")} className="bg-red-600" />
+              <MiniButton label="Notifier patient" icon={<BellIcon />} onClick={() => alert("Notification patient bientôt liée aux interventions.")} className="bg-white/10" />
+              <MiniButton label="Terminer mission" icon={<CheckCircle2 size={14} />} onClick={() => setStatus("Disponible")} className="bg-green-600" />
+            </>
+          )}
+
+          {technicalActions && (
+            <>
+              <MiniButton label="Maintenance" icon={<Wrench size={14} />} onClick={() => setStatus("Maintenance")} className="bg-orange-600" />
+              <MiniButton label="Équipement incomplet" icon={<AlertTriangle size={14} />} onClick={() => setEquipment("Incomplet")} className="bg-red-600" />
+              <MiniButton label="Équipement complet" icon={<ShieldCheck size={14} />} onClick={() => setEquipment("Complet")} className="bg-green-600" />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
+function BellIcon() {
+  return <Radio size={14} />;
+}
+
+async function generateAmbulanceReport(ambulances: any[], title: string) {
+  const jsPDFModule = await import("jspdf");
+  await import("jspdf-autotable");
+
+  const docPDF = new jsPDFModule.default();
+  const date = new Date().toLocaleString("fr-FR");
+
+  docPDF.setFontSize(18);
+  docPDF.text("LA VIE — Service d’Urgence Médicale Rapide", 14, 18);
+
+  docPDF.setFontSize(13);
+  docPDF.text(title, 14, 28);
+
+  docPDF.setFontSize(10);
+  docPDF.text(`Généré le : ${date}`, 14, 36);
+
+  const rows = ambulances.map((a) => [
+    a.matricule || "-",
+    a.plate || "-",
+    a.driver || "-",
+    a.medic || "-",
+    a.zone || "-",
+    a.status || "-",
+    `${a.fuel || 0}%`,
+    a.equipment || "-",
+  ]);
+
+  (docPDF as any).autoTable({
+    head: [["Matricule", "Plaque", "Chauffeur", "Urgentiste", "Zone", "Statut", "Carburant", "Équipement"]],
+    body: rows.length ? rows : [["-", "-", "-", "-", "-", "-", "-", "-"]],
+    startY: 45,
+  });
+
+  docPDF.save(`${title.replaceAll(" ", "_")}.pdf`);
+}
+
+function printAmbulanceReport(ambulances: any[], title: string) {
+  const rows = ambulances
+    .map(
+      (a) => `
+      <tr>
+        <td>${a.matricule || "-"}</td>
+        <td>${a.plate || "-"}</td>
+        <td>${a.driver || "-"}</td>
+        <td>${a.medic || "-"}</td>
+        <td>${a.zone || "-"}</td>
+        <td>${a.status || "-"}</td>
+        <td>${a.fuel || 0}%</td>
+        <td>${a.equipment || "-"}</td>
+      </tr>`
+    )
+    .join("");
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial; padding: 30px; }
+          h1 { color: #b91c1c; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+          th { background: #b91c1c; color: white; }
+        </style>
+      </head>
+      <body>
+        <h1>LA VIE — ${title}</h1>
+        <p>Généré le : ${new Date().toLocaleString("fr-FR")}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Matricule</th>
+              <th>Plaque</th>
+              <th>Chauffeur</th>
+              <th>Urgentiste</th>
+              <th>Zone</th>
+              <th>Statut</th>
+              <th>Carburant</th>
+              <th>Équipement</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || "<tr><td colspan='8'>Aucune ambulance enregistrée</td></tr>"}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  printWindow.print();
+}
+
 function Header({ title, subtitle, setView }: any) {
   return (
-    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-orange-600 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
+    <div className="h-[78px] rounded-[26px] bg-gradient-to-r from-red-800 via-red-700 to-rose-900 px-6 flex items-center justify-between shadow-2xl shadow-red-900/40">
       <div>
         <div className="text-2xl font-black">{title}</div>
         <div className="text-xs text-white/70 mt-1">{subtitle}</div>
@@ -440,15 +542,27 @@ function Stat({ title, value, color }: any) {
   );
 }
 
-function Action({ icon, title, text }: any) {
+function ActionButton({ label, icon, onClick, color }: any) {
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-[24px] p-5">
-      <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center mb-4">
-        {icon}
-      </div>
-      <div className="font-black">{title}</div>
-      <div className="text-sm text-white/45 mt-2">{text}</div>
-    </div>
+    <button
+      onClick={onClick}
+      className={`h-11 px-4 rounded-2xl ${color} font-black text-sm flex items-center gap-2`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function MiniButton({ label, icon, onClick, className }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`h-9 px-3 rounded-xl text-xs font-black flex items-center gap-2 ${className}`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -462,6 +576,23 @@ function Input({ label, value, onChange, placeholder }: any) {
         placeholder={placeholder}
         className="w-full h-14 rounded-2xl bg-white/[0.04] border border-white/10 px-4 outline-none placeholder:text-white/25"
       />
+    </div>
+  );
+}
+
+function Select({ label, value, onChange, options }: any) {
+  return (
+    <div>
+      <div className="text-xs text-white/40 mb-2">{label}</div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-14 rounded-2xl bg-[#111827] border border-white/10 px-4 outline-none"
+      >
+        {options.map((option: string) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
     </div>
   );
 }
